@@ -16,6 +16,12 @@ import { ProductShowcase } from "./components/ProductShowcase";
 import { BarChartRace } from "./components/BarChartRace";
 import { LineChart } from "./components/LineChart";
 import { DonutChart } from "./components/DonutChart";
+import { AreaChart } from "./components/AreaChart";
+import { PieChart } from "./components/PieChart";
+import { CircularProgress } from "./components/CircularProgress";
+import { ProgressSteps } from "./components/ProgressSteps";
+import { TerminalSimulator } from "./components/TerminalSimulator";
+import { DataFlowPipes } from "./components/DataFlowPipes";
 
 // The full style library. Every scene picks one of these by name.
 const STYLE_LIBRARY = {
@@ -36,6 +42,12 @@ const STYLE_LIBRARY = {
   BarChartRace,
   LineChart,
   DonutChart,
+  AreaChart,
+  PieChart,
+  CircularProgress,
+  ProgressSteps,
+  TerminalSimulator,
+  DataFlowPipes,
 };
 
 export const calculateTotalFrames = (scenes) => {
