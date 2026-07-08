@@ -2,22 +2,24 @@ const { google } = require("googleapis");
 const fs = require("fs");
 const path = require("path");
 
-function getAuth() {
-  // GOOGLE_SERVICE_ACCOUNT_JSON holds the *entire* service account JSON key
-  // as a single-line string, set as an env var in Dokploy (never committed to git).
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON env var is not set");
+function getOAuthClient() {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REFRESH_TOKEN env vars are all required"
+    );
   }
-  const credentials = JSON.parse(raw);
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+
+  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
+  oAuth2Client.setCredentials({ refresh_token: refreshToken });
+  return oAuth2Client;
 }
 
 async function driveClient() {
-  const auth = getAuth();
+  const auth = getOAuthClient();
   return google.drive({ version: "v3", auth });
 }
 
