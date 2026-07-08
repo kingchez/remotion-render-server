@@ -40,7 +40,7 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
 
       <div style={{ position: "relative", flex: 1 }}>
         {sorted.map((s, rank) => {
-          const widthPct = (s.currentValue / maxValue) * 85;
+          const widthPct = (s.currentValue / maxValue) * 92;
           const originalIndex = series.findIndex((orig) => orig.label === s.label);
           const color = colors[originalIndex % colors.length];
 
@@ -59,18 +59,20 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
             >
               <div style={{
                 width: 160, color: "white", fontSize: 26, fontWeight: 700,
-                fontFamily: "Arial, sans-serif", textAlign: "right", paddingRight: 16,
+                fontFamily: "Arial, sans-serif", textAlign: "right", paddingRight: 16, flexShrink: 0,
               }}>
                 {s.label}
               </div>
-              <div style={{
-                width: `${widthPct}%`, height: "100%", background: color,
-                borderRadius: 8, display: "flex", alignItems: "center",
-                justifyContent: "flex-end", paddingRight: 16,
-              }}>
-                <span style={{ color: "white", fontSize: 24, fontWeight: 700, fontFamily: "Arial, sans-serif" }}>
-                  {s.currentValue.toFixed(1)}{unit}
-                </span>
+              <div style={{ flex: 1, height: "100%", position: "relative" }}>
+                <div style={{
+                  width: `${widthPct}%`, height: "100%", background: color,
+                  borderRadius: 8, display: "flex", alignItems: "center",
+                  justifyContent: "flex-end", paddingRight: 16,
+                }}>
+                  <span style={{ color: "white", fontSize: 24, fontWeight: 700, fontFamily: "Arial, sans-serif" }}>
+                    {s.currentValue.toFixed(1)}{unit}
+                  </span>
+                </div>
               </div>
             </div>
           );

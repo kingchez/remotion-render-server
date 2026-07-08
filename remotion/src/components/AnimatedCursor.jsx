@@ -1,14 +1,14 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 
-// points: [{ x, y, hold, click }] - a path the cursor travels, pausing at each
-// point for `hold` frames, with a click ripple effect when `click: true`.
-// This overlays on top of Screencast (or any style) to simulate a large,
-// deliberately-animated cursor - the "explainer tutorial" look, decoupled
-// from whatever the real mouse did during screen recording.
+// points: [{ x, y, hold, click }] - x/y are PERCENTAGES (0-100) of the
+// container, not raw pixels - so this works correctly no matter the actual
+// video size (vertical, horizontal, or inside a DeviceFrame's content area).
+// The cursor travels between points, pausing at each for `hold` frames, with
+// a click ripple effect when `click: true`.
 const DEFAULT_POINTS = [
-  { x: 200, y: 150, hold: 20 },
-  { x: 800, y: 360, hold: 25, click: true },
-  { x: 1050, y: 560, hold: 20 },
+  { x: 15, y: 20, hold: 20 },
+  { x: 60, y: 45, hold: 25, click: true },
+  { x: 80, y: 75, hold: 20 },
 ];
 
 export const AnimatedCursor = ({ points = DEFAULT_POINTS, color = "#ffffff", size = 32 }) => {
@@ -87,12 +87,12 @@ export const AnimatedCursor = ({ points = DEFAULT_POINTS, color = "#ffffff", siz
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {rippleOpacity > 0 && (
-        <svg style={{ position: "absolute", left: x - 80, top: y - 80, width: 160, height: 160 }}>
+        <svg style={{ position: "absolute", left: `calc(${x}% - 80px)`, top: `calc(${y}% - 80px)`, width: 160, height: 160 }}>
           <circle cx={80} cy={80} r={rippleRadius} fill="none" stroke={color} strokeWidth={2} opacity={rippleOpacity} />
         </svg>
       )}
       <div style={{
-        position: "absolute", left: x, top: y, width: size, height: size,
+        position: "absolute", left: `${x}%`, top: `${y}%`, width: size, height: size,
         transform: `scale(${clickScale})`, transformOrigin: "top left", zIndex: 999999,
       }}>
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

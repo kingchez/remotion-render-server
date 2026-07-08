@@ -2,7 +2,7 @@ import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
 
 export const SplitCompare = ({ leftImageUrl, rightImageUrl, leftLabel, rightLabel }) => {
   const frame = useCurrentFrame();
-  const dividerX = interpolate(frame, [0, 15], [50, 50]); // static divider, could animate later
+  const dividerX = 50; // static center divider, could animate later
   const fade = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
 
   return (

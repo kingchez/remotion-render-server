@@ -19,7 +19,7 @@ export const QuoteCard = ({ quote, author, durationInFrames }) => {
         </div>
         {author ? (
           <div style={{ marginTop: 24, fontSize: 30, color: "#DDE6FF", fontFamily: "Arial, sans-serif" }}>
-            — {author}
+            - {author}
           </div>
         ) : null}
       </div>

@@ -11,8 +11,11 @@ export const DonutChart = ({ title, segments, centerLabel, durationInFrames }) =
   const circumference = 2 * Math.PI * radius;
 
   let cumulativeOffset = 0;
+  const primaryPct = Math.round((segments[0].value / total) * 100);
+  const primarySegStart = 0;
+  const primarySegEnd = durationInFrames * 0.15;
   const centerValue = Math.round(
-    interpolate(frame, [10, durationInFrames * 0.5], [0, 100], {
+    interpolate(frame, [primarySegStart, primarySegEnd], [0, primaryPct], {
       extrapolateRight: "clamp", extrapolateLeft: "clamp",
     })
   );
