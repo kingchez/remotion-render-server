@@ -13,6 +13,9 @@ import { ChatStory } from "./components/ChatStory";
 import { MapZoom } from "./components/MapZoom";
 import { SplitCompare } from "./components/SplitCompare";
 import { ProductShowcase } from "./components/ProductShowcase";
+import { BarChartRace } from "./components/BarChartRace";
+import { LineChart } from "./components/LineChart";
+import { DonutChart } from "./components/DonutChart";
 
 // The full style library. Every scene picks one of these by name.
 const STYLE_LIBRARY = {
@@ -30,6 +33,9 @@ const STYLE_LIBRARY = {
   MapZoom,
   SplitCompare,
   ProductShowcase,
+  BarChartRace,
+  LineChart,
+  DonutChart,
 };
 
 export const calculateTotalFrames = (scenes) => {

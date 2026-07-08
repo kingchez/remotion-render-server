@@ -1,13 +1,20 @@
 import { AbsoluteFill, OffthreadVideo, interpolate, useCurrentFrame } from "remotion";
+import { DeviceFrame } from "./DeviceFrame";
+import { AnimatedCursor } from "./AnimatedCursor";
 
 // Recorded screen video + an animated highlight box that draws attention
 // to a specific area (e.g. the n8n node being explained), plus a caption.
+// Optional: wrap in a browser DeviceFrame, and/or overlay an AnimatedCursor
+// path for the "tutorial with a big cursor clicking things" look.
 export const Screencast = ({
   videoUrl,
   caption,
   highlightBox, // { xPct, yPct, widthPct, heightPct } - all 0-100, optional
   highlightFromFrame = 0,
   highlightToFrame,
+  deviceFrame = false, // wrap in a fake browser window
+  deviceFrameUrl, // shown in the fake browser's URL bar
+  cursorPoints, // [{x, y, hold, click}] - overlay an animated cursor path
   durationInFrames,
 }) => {
   const frame = useCurrentFrame();
@@ -19,8 +26,8 @@ export const Screencast = ({
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  return (
-    <AbsoluteFill style={{ backgroundColor: "black" }}>
+  const content = (
+    <>
       <OffthreadVideo src={videoUrl} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       {highlightBox ? (
         <div
@@ -37,6 +44,17 @@ export const Screencast = ({
           }}
         />
       ) : null}
+      {cursorPoints ? <AnimatedCursor points={cursorPoints} /> : null}
+    </>
+  );
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "black" }}>
+      {deviceFrame ? (
+        <DeviceFrame url={deviceFrameUrl}>{content}</DeviceFrame>
+      ) : (
+        content
+      )}
       {caption ? (
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 100 }}>
           <div style={{
