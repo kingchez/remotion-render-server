@@ -36,7 +36,7 @@ function bezierLength(a, b) {
 // to hand-tune coordinates to avoid empty/unbalanced space.
 export const DataFlowPipes = ({
   nodes, edges, pipeColor = "#2a2a30", pulseColor = "#22d3ee",
-  pulseLength = 60, pulseDuration = 36, nodeColor = "#0a0a0a", textColor = "#fafafa",
+  pulseLength = 60, pulseDuration = 36, loopGap = 30, nodeColor = "#0a0a0a", textColor = "#fafafa",
 }) => {
   const frame = useCurrentFrame();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -74,11 +74,14 @@ export const DataFlowPipes = ({
             const path = bezierPath(a, b);
             const len = bezierLength(a, b);
             const startFrame = edge.startFrame ?? 0;
-            const localFrame = frame - startFrame;
+            const cycle = pulseDuration + loopGap;
+            const rawLocal = frame - startFrame;
+            if (rawLocal < 0) return null;
+            const localFrame = rawLocal % cycle;
             const offset = interpolate(localFrame, [0, pulseDuration], [len + pulseLength, -pulseLength], {
               extrapolateLeft: "clamp", extrapolateRight: "clamp",
             });
-            if (localFrame < 0 || localFrame > pulseDuration + 6) return null;
+            if (localFrame > pulseDuration + 6) return null;
             return (
               <g key={`pulse-${i}`}>
                 {[0.15, 0.3, 0.55].map((alpha, idx) => (
