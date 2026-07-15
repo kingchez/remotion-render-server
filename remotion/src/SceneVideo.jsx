@@ -71,8 +71,15 @@ export const SceneVideo = ({ scenes, audioUrl }) => {
           );
         }
 
+        // Per-scene audio: if this scene's own props resolved an audioUrl
+        // (e.g. from an audioDriveFileId), play it during just this scene -
+        // this is what makes per-segment voiceovers actually sync to their
+        // matching scene, instead of only supporting one whole-video track.
+        const sceneAudioUrl = scene.props?.audioUrl;
+
         return (
           <Sequence key={i} from={from} durationInFrames={scene.durationInFrames}>
+            {sceneAudioUrl ? <Audio src={sceneAudioUrl} /> : null}
             <StyleComponent {...scene.props} durationInFrames={scene.durationInFrames} />
           </Sequence>
         );

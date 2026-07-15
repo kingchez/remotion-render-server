@@ -104,8 +104,9 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
       if (!key.endsWith("DriveFileId")) continue;
       const fileId = props[key];
       const targetKey = key.slice(0, -"DriveFileId".length) + "Url";
-      const isVideo = key.toLowerCase().includes("video");
-      const localPath = path.join(dir, `scene-${i}-${key}${isVideo ? ".mp4" : ".jpg"}`);
+      const keyLower = key.toLowerCase();
+      const ext = keyLower.includes("audio") ? ".mp3" : keyLower.includes("video") ? ".mp4" : ".jpg";
+      const localPath = path.join(dir, `scene-${i}-${key}${ext}`);
       await downloadFile(fileId, localPath);
       props[targetKey] = `file://${localPath}`;
       delete props[key];
