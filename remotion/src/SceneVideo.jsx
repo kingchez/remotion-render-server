@@ -23,6 +23,7 @@ import { ProgressSteps } from "./components/ProgressSteps";
 import { TerminalSimulator } from "./components/TerminalSimulator";
 import { DataFlowPipes } from "./components/DataFlowPipes";
 import { AnimatedCaptions } from "./components/AnimatedCaptions";
+import { Icon } from "./components/Icon";
 
 // The full style library. Every scene picks one of these by name.
 const STYLE_LIBRARY = {
@@ -50,6 +51,7 @@ const STYLE_LIBRARY = {
   TerminalSimulator,
   DataFlowPipes,
   AnimatedCaptions,
+  Icon,
 };
 
 export const calculateTotalFrames = (scenes) => {

@@ -4,6 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const { v4: uuidv4 } = require("uuid");
 const { downloadFile, uploadFile } = require("./drive");
+const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo } = require("./render");
 
 const app = express();
@@ -128,6 +129,18 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
       await downloadFile(fileId, localPath);
       props[targetKey] = `file://${localPath}`;
       delete props[key];
+    }
+
+    // Resolve icon references to real SVG markup - either a single
+    // top-level `icon: {library, name}`, or `icon` fields nested inside
+    // an `items` array (e.g. a row of labeled icons).
+    if (props.icon) {
+      props.iconSvg = resolveIconSvg(props.icon);
+    }
+    if (Array.isArray(props.items)) {
+      props.items = props.items.map((item) =>
+        item?.icon ? { ...item, iconSvg: resolveIconSvg(item.icon) } : item
+      );
     }
 
     resolvedScenes.push({ ...scene, props });
