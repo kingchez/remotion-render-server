@@ -22,6 +22,7 @@ import { CircularProgress } from "./components/CircularProgress";
 import { ProgressSteps } from "./components/ProgressSteps";
 import { TerminalSimulator } from "./components/TerminalSimulator";
 import { DataFlowPipes } from "./components/DataFlowPipes";
+import { AnimatedCaptions } from "./components/AnimatedCaptions";
 
 // The full style library. Every scene picks one of these by name.
 const STYLE_LIBRARY = {
@@ -48,6 +49,7 @@ const STYLE_LIBRARY = {
   ProgressSteps,
   TerminalSimulator,
   DataFlowPipes,
+  AnimatedCaptions,
 };
 
 export const calculateTotalFrames = (scenes) => {
@@ -77,10 +79,16 @@ export const SceneVideo = ({ scenes, audioUrl }) => {
         // matching scene, instead of only supporting one whole-video track.
         const sceneAudioUrl = scene.props?.audioUrl;
 
+        // Any scene can carry optional word-level captions (from WhisperX
+        // timing) that overlay on top of whatever style is being used -
+        // captions are independent of which visual style a scene uses.
+        const captionWords = scene.props?.captionWords;
+
         return (
           <Sequence key={i} from={from} durationInFrames={scene.durationInFrames}>
             {sceneAudioUrl ? <Audio src={sceneAudioUrl} /> : null}
             <StyleComponent {...scene.props} durationInFrames={scene.durationInFrames} />
+            {captionWords ? <AnimatedCaptions words={captionWords} {...scene.props?.captionStyle} /> : null}
           </Sequence>
         );
       })}
