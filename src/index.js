@@ -32,6 +32,7 @@ app.post("/renders", async (req, res) => {
     audioDriveFileId,
     outputDriveFolderId,
     orientation = "vertical",
+    callbackUrl,
   } = req.body || {};
 
   if (!["vertical", "horizontal"].includes(orientation)) {
@@ -66,7 +67,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -74,9 +75,26 @@ app.post("/renders", async (req, res) => {
         createdAt: jobs.get(jobId)?.createdAt,
       });
       cleanup(jobId);
+      fireCallback(callbackUrl, { jobId, status: "error", error: err.message });
     }
   );
 });
+
+// Best-effort POST to the caller's callback URL when a job finishes.
+// Never throws - a broken callback URL shouldn't affect the render itself,
+// since polling GET /renders/:id still works regardless.
+async function fireCallback(callbackUrl, payload) {
+  if (!callbackUrl) return;
+  try {
+    await fetch(callbackUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error(`Callback to ${callbackUrl} failed:`, err.message);
+  }
+}
 
 app.get("/renders/:id", (req, res) => {
   const job = jobs.get(req.params.id);
@@ -84,7 +102,7 @@ app.get("/renders/:id", (req, res) => {
   res.json({ jobId: req.params.id, ...job });
 });
 
-async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation }) {
+async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -134,6 +152,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   });
 
   cleanup(jobId); // nothing stays on the VPS after upload
+  fireCallback(callbackUrl, { jobId, status: "done", result: uploadResult });
 }
 
 app.listen(PORT, () => {
