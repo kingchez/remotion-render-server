@@ -33,6 +33,7 @@ app.post("/renders", async (req, res) => {
     audioDriveFileId,
     outputDriveFolderId,
     orientation = "vertical",
+    look,
     callbackUrl,
   } = req.body || {};
 
@@ -69,7 +70,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, callbackUrl }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -104,7 +105,7 @@ app.get("/renders/:id", (req, res) => {
   res.json({ jobId: req.params.id, ...job });
 });
 
-async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, callbackUrl }) {
+async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -142,6 +143,14 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
       );
     }
 
+    // Preset objects (scene-graph type "preset") carry their actual
+    // component props nested one level deeper - resolve those too, or
+    // any Drive file/icon reference inside a preset would silently
+    // never get downloaded.
+    if (resolved.type === "preset" && resolved.props) {
+      resolved.props = await resolveAssets(resolved.props, sceneIndex, `${keyPrefix}preset-`);
+    }
+
     return resolved;
   }
 
@@ -169,7 +178,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   }
 
   const outputPath = path.join(dir, "output.mp4");
-  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation });
+  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look });
 
   const uploadResult = await uploadFile(outputPath, outputDriveFolderId, "video/mp4");
 

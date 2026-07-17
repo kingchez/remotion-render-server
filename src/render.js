@@ -16,10 +16,10 @@ function getBundleLocation() {
   return bundleLocationPromise;
 }
 
-async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical" }) {
+async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look }) {
   const serveUrl = await getBundleLocation();
 
-  const inputProps = { scenes, audioUrl: audioUrl || null, orientation };
+  const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null };
 
   const composition = await selectComposition({
     serveUrl,

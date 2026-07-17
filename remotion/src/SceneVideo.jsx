@@ -26,8 +26,10 @@ import { DataFlowPipes } from "./components/DataFlowPipes";
 import { AnimatedCaptions } from "./components/AnimatedCaptions";
 import { Icon } from "./components/Icon";
 import { TiltShiftOverlay } from "./components/TiltShiftOverlay";
+import { FilmLook } from "./components/FilmLook";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
+import { getTransitionStyle } from "./transitions";
 
 // The full style library. Every scene picks one of these by name, OR a
 // scene can instead use `objects: [...]` (the scene-graph format) with
@@ -82,15 +84,56 @@ const CameraWrapper = ({ movement, durationInFrames, children }) => {
   );
 };
 
-export const SceneVideo = ({ scenes, audioUrl }) => {
-  let startFrame = 0;
+// Wraps a scene's content with an optional entrance/exit transition
+// (crossfade, wipe, zoom) that overlaps with the neighboring scene.
+// frontExtend/backExtend are how many frames this scene's Sequence was
+// extended on each side to create the overlap window.
+const TransitionWrapper = ({
+  children, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration,
+  nextTransitionIn, nextTransitionDuration,
+}) => {
+  const frame = useCurrentFrame(); // local frame within this scene's (possibly extended) Sequence
+
+  let style = {};
+  if (frontExtend > 0 && frame < frontExtend) {
+    const progress = frame / ownTransitionDuration;
+    style = getTransitionStyle(ownTransitionIn, progress);
+  } else if (backExtend > 0 && frame >= durationInFrames - backExtend) {
+    const framesIntoExit = frame - (durationInFrames - backExtend);
+    const progress = 1 - framesIntoExit / nextTransitionDuration;
+    style = getTransitionStyle(nextTransitionIn, progress);
+  }
+
+  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+};
+
+export const SceneVideo = ({ scenes, audioUrl, look }) => {
+  // Precompute each scene's actual (possibly overlap-extended) timing.
+  // Normal case (no transitions specified anywhere): behaves exactly like
+  // the old simple sequential loop - fully backward compatible.
+  let cumulativeStart = 0;
+  const timedScenes = scenes.map((scene, i) => {
+    const ownTransitionIn = scene.transitionIn && scene.transitionIn !== "none" ? scene.transitionIn : null;
+    const ownTransitionDuration = scene.transitionDuration ?? 15;
+    const nextScene = scenes[i + 1];
+    const nextTransitionIn = nextScene?.transitionIn && nextScene.transitionIn !== "none" ? nextScene.transitionIn : null;
+    const nextTransitionDuration = nextScene?.transitionDuration ?? 15;
+
+    const frontExtend = i > 0 && ownTransitionIn ? ownTransitionDuration : 0;
+    const backExtend = nextTransitionIn ? nextTransitionDuration : 0;
+
+    const from = cumulativeStart - frontExtend;
+    const durationInFrames = scene.durationInFrames + frontExtend + backExtend;
+    cumulativeStart += scene.durationInFrames;
+
+    return { scene, from, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration };
+  });
 
   return (
     <AbsoluteFill>
       {audioUrl ? <Audio src={audioUrl} /> : null}
-      {scenes.map((scene, i) => {
-        const from = startFrame;
-        startFrame += scene.durationInFrames;
+      {timedScenes.map((t, i) => {
+        const { scene, from, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration } = t;
 
         // Per-scene audio: if this scene's own props resolved an audioUrl
         // (e.g. from an audioDriveFileId), play it during just this scene -
@@ -127,15 +170,28 @@ export const SceneVideo = ({ scenes, audioUrl }) => {
         }
 
         return (
-          <Sequence key={i} from={from} durationInFrames={scene.durationInFrames}>
+          <Sequence key={i} from={from} durationInFrames={durationInFrames}>
             {sceneAudioUrl ? <Audio src={sceneAudioUrl} /> : null}
-            <CameraWrapper movement={scene.camera} durationInFrames={scene.durationInFrames}>
-              {content}
-            </CameraWrapper>
-            {captionWords ? <AnimatedCaptions words={captionWords} {...scene.props?.captionStyle} /> : null}
+            <TransitionWrapper
+              durationInFrames={durationInFrames}
+              frontExtend={frontExtend}
+              backExtend={backExtend}
+              ownTransitionIn={ownTransitionIn}
+              ownTransitionDuration={ownTransitionDuration}
+              nextTransitionIn={nextTransitionIn}
+              nextTransitionDuration={nextTransitionDuration}
+            >
+              <CameraWrapper movement={scene.camera} durationInFrames={scene.durationInFrames}>
+                {content}
+              </CameraWrapper>
+              {captionWords ? <AnimatedCaptions words={captionWords} {...scene.props?.captionStyle} /> : null}
+            </TransitionWrapper>
           </Sequence>
         );
       })}
+      {look?.grain || look?.vignette ? (
+        <FilmLook grain={look?.grain} vignette={look?.vignette} grainOpacity={look?.grainOpacity} />
+      ) : null}
     </AbsoluteFill>
   );
 };
