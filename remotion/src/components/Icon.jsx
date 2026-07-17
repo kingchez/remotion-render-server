@@ -1,29 +1,23 @@
-import { interpolate, useCurrentFrame } from "remotion";
+import { computeMotion } from "../motion";
+import { useCurrentFrame, useVideoConfig } from "remotion";
 
-// This is the first "primitive" component - built to be composed, not a
-// fixed application-level scene like our other 25 components. Any scene
-// (or a future generic multi-object scene) can place an Icon anywhere,
-// any size, any color, with a simple pop-in animation.
+// The first primitive - built to be composed, not a fixed application-level
+// scene like our other 25 components. Any scene can place an Icon anywhere,
+// any size, any color, with any combination of shared motion animations.
 export const Icon = ({
   iconSvg,
   size = 160,
   color = "#FFFFFF",
-  x = 50, // percent, center-anchored
-  y = 50, // percent, center-anchored
-  entrance = "pop", // "pop" | "fade" | "none"
-  durationInFrames = 90,
+  x = 50, // percent, center-anchored (overridden by a "moveTo" animation if present)
+  y = 50,
+  animations = [{ type: "pop", start: 0, duration: 12 }],
 }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  let opacity = 1;
-  let scale = 1;
-
-  if (entrance === "pop") {
-    opacity = interpolate(frame, [0, 10], [0, 1], { extrapolateRight: "clamp" });
-    scale = interpolate(frame, [0, 12], [0.6, 1], { extrapolateRight: "clamp" });
-  } else if (entrance === "fade") {
-    opacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  }
+  const { style, positionOverride, highlightActive, highlightColor } = computeMotion(animations, frame, fps);
+  const posX = positionOverride?.x ?? x;
+  const posY = positionOverride?.y ?? y;
 
   if (!iconSvg) return null;
 
@@ -31,13 +25,15 @@ export const Icon = ({
     <div
       style={{
         position: "absolute",
-        left: `${x}%`,
-        top: `${y}%`,
-        transform: `translate(-50%, -50%) scale(${scale})`,
-        opacity,
+        left: `${posX}%`,
+        top: `${posY}%`,
         width: size,
         height: size,
         color,
+        transform: `translate(-50%, -50%) ${style.transform}`,
+        opacity: style.opacity,
+        boxShadow: highlightActive ? `0 0 0 6px ${highlightColor}, 0 0 30px 10px ${highlightColor}80` : "none",
+        borderRadius: highlightActive ? "50%" : 0,
       }}
       dangerouslySetInnerHTML={{ __html: iconSvg }}
     />

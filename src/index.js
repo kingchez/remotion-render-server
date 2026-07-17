@@ -48,17 +48,18 @@ app.post("/renders", async (req, res) => {
   if (!outputDriveFolderId) {
     return res.status(400).json({ error: "outputDriveFolderId is required" });
   }
-  // Each scene must declare which style component to use, its duration,
-  // and a props object holding that component's specific fields.
+  // Each scene needs durationInFrames, plus EITHER the classic
+  // component/props format OR the scene-graph objects[] format.
   for (const s of scenes) {
-    if (!s.component) {
-      return res.status(400).json({ error: "each scene needs a component name" });
-    }
     if (!s.durationInFrames) {
       return res.status(400).json({ error: "each scene needs durationInFrames" });
     }
-    if (!s.props || typeof s.props !== "object") {
-      return res.status(400).json({ error: "each scene needs a props object" });
+    const hasClassicFormat = s.component && s.props && typeof s.props === "object";
+    const hasSceneGraphFormat = Array.isArray(s.objects) && s.objects.length > 0;
+    if (!hasClassicFormat && !hasSceneGraphFormat) {
+      return res.status(400).json({
+        error: "each scene needs either {component, props} or a non-empty objects[] array",
+      });
     }
   }
 
@@ -114,36 +115,50 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   // "somethingUrl" pointing at the local temp copy. Works for images,
   // videos, or any future style's assets without server code changes -
   // e.g. "imageDriveFileId" -> "imageUrl", "videoDriveFileId" -> "videoUrl".
-  const resolvedScenes = [];
-  for (let i = 0; i < scenes.length; i++) {
-    const scene = scenes[i];
-    const props = { ...scene.props };
+  // Also resolves `icon: {library, name}` references to real SVG markup.
+  // Applied uniformly to classic scene.props AND each object in the
+  // scene-graph `objects` array, so both formats get the same treatment.
+  async function resolveAssets(obj, sceneIndex, keyPrefix) {
+    const resolved = { ...obj };
 
-    for (const key of Object.keys(props)) {
+    for (const key of Object.keys(resolved)) {
       if (!key.endsWith("DriveFileId")) continue;
-      const fileId = props[key];
+      const fileId = resolved[key];
       const targetKey = key.slice(0, -"DriveFileId".length) + "Url";
       const keyLower = key.toLowerCase();
       const ext = keyLower.includes("audio") ? ".mp3" : keyLower.includes("video") ? ".mp4" : ".jpg";
-      const localPath = path.join(dir, `scene-${i}-${key}${ext}`);
+      const localPath = path.join(dir, `scene-${sceneIndex}-${keyPrefix}${key}${ext}`);
       await downloadFile(fileId, localPath);
-      props[targetKey] = `file://${localPath}`;
-      delete props[key];
+      resolved[targetKey] = `file://${localPath}`;
+      delete resolved[key];
     }
 
-    // Resolve icon references to real SVG markup - either a single
-    // top-level `icon: {library, name}`, or `icon` fields nested inside
-    // an `items` array (e.g. a row of labeled icons).
-    if (props.icon) {
-      props.iconSvg = resolveIconSvg(props.icon);
+    if (resolved.icon) {
+      resolved.iconSvg = resolveIconSvg(resolved.icon);
     }
-    if (Array.isArray(props.items)) {
-      props.items = props.items.map((item) =>
+    if (Array.isArray(resolved.items)) {
+      resolved.items = resolved.items.map((item) =>
         item?.icon ? { ...item, iconSvg: resolveIconSvg(item.icon) } : item
       );
     }
 
-    resolvedScenes.push({ ...scene, props });
+    return resolved;
+  }
+
+  const resolvedScenes = [];
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i];
+
+    if (Array.isArray(scene.objects)) {
+      const resolvedObjects = [];
+      for (let o = 0; o < scene.objects.length; o++) {
+        resolvedObjects.push(await resolveAssets(scene.objects[o], i, `obj${o}-`));
+      }
+      resolvedScenes.push({ ...scene, objects: resolvedObjects });
+    } else {
+      const props = await resolveAssets(scene.props || {}, i, "");
+      resolvedScenes.push({ ...scene, props });
+    }
   }
 
   let audioUrl = null;
