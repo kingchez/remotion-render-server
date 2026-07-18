@@ -1,6 +1,7 @@
 import { Icon } from "./components/Icon";
 import { Text } from "./components/Text";
 import { Image } from "./components/Image";
+import { Shape } from "./components/Shape";
 import { AnimatedCursor } from "./components/AnimatedCursor";
 
 // The primitive library - generic building blocks, usable inside any
@@ -11,6 +12,7 @@ const PRIMITIVES = {
   icon: Icon,
   text: Text,
   image: Image,
+  shape: Shape,
   cursor: AnimatedCursor,
 };
 
