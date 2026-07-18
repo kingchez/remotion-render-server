@@ -15,13 +15,17 @@ export const AnimatedCursor = ({ points = DEFAULT_POINTS, color = "#ffffff", siz
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const travelPerLeg = 24;
   const segments = [];
   let cursor = 0;
   for (let i = 0; i < points.length - 1; i++) {
     const from = points[i];
     const to = points[i + 1];
     const start = cursor;
+    // Scale travel time by on-screen distance (percent units) so a long
+    // jump across the frame doesn't move in the same duration as a tiny
+    // nudge - clamped to a sane range either way.
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const travelPerLeg = Math.round(Math.min(40, Math.max(10, distance * 0.5)));
     const end = start + travelPerLeg;
     const holdEnd = end + (to.hold ?? 15);
     segments.push({ start, end, holdEnd, from, to });

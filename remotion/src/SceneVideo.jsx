@@ -135,16 +135,21 @@ export const SceneVideo = ({ scenes, audioUrl, look }) => {
       {timedScenes.map((t, i) => {
         const { scene, from, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration } = t;
 
-        // Per-scene audio: if this scene's own props resolved an audioUrl
-        // (e.g. from an audioDriveFileId), play it during just this scene -
+        // Per-scene audio: if this scene resolved an audioUrl (e.g. from a
+        // scene-level audioDriveFileId), play it during just this scene -
         // this is what makes per-segment voiceovers actually sync to their
         // matching scene, instead of only supporting one whole-video track.
-        const sceneAudioUrl = scene.props?.audioUrl;
+        // Scene-level field works for both classic and scene-graph (objects[])
+        // formats; scene.props?.audioUrl is kept as a fallback for older
+        // classic-format scenes that set it there directly.
+        const sceneAudioUrl = scene.audioUrl ?? scene.props?.audioUrl;
 
         // Any scene can carry optional word-level captions (from WhisperX
         // timing) that overlay on top of whatever style is being used -
         // captions are independent of which visual style a scene uses.
-        const captionWords = scene.props?.captionWords;
+        // Same scene-level-first, props-fallback pattern as audio above.
+        const captionWords = scene.captionWords ?? scene.props?.captionWords;
+        const captionStyle = scene.captionStyle ?? scene.props?.captionStyle;
 
         // Two ways to define a scene's content:
         // 1. Classic: scene.component + scene.props (all 25 existing styles)
@@ -184,7 +189,7 @@ export const SceneVideo = ({ scenes, audioUrl, look }) => {
               <CameraWrapper movement={scene.camera} durationInFrames={scene.durationInFrames}>
                 {content}
               </CameraWrapper>
-              {captionWords ? <AnimatedCaptions words={captionWords} {...scene.props?.captionStyle} /> : null}
+              {captionWords ? <AnimatedCaptions words={captionWords} {...captionStyle} /> : null}
             </TransitionWrapper>
           </Sequence>
         );

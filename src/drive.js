@@ -41,6 +41,17 @@ async function downloadFile(fileId, destPath) {
   });
 }
 
+// Fetches a Drive file's real mimeType/name without downloading its content.
+// Used so callers can pick a correct local file extension instead of
+// guessing one from the prop name (a Drive image saved as .png/.webp was
+// previously always written to disk as .jpg, which can break MIME
+// sniffing since these become file:// URLs handed straight to Chromium).
+async function getFileMetadata(fileId) {
+  const drive = await driveClient();
+  const res = await drive.files.get({ fileId, fields: "mimeType, name" });
+  return { mimeType: res.data.mimeType, name: res.data.name };
+}
+
 // Uploads a local file to a specific Drive folder, returns the new file's id + link
 async function uploadFile(localPath, folderId, mimeType) {
   const drive = await driveClient();
@@ -65,4 +76,4 @@ async function uploadFile(localPath, folderId, mimeType) {
   };
 }
 
-module.exports = { downloadFile, uploadFile };
+module.exports = { downloadFile, uploadFile, getFileMetadata };

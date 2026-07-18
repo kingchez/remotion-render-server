@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { v4: uuidv4 } = require("uuid");
-const { downloadFile, uploadFile } = require("./drive");
+const { downloadFile, uploadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo } = require("./render");
 
@@ -105,6 +105,27 @@ app.get("/renders/:id", (req, res) => {
   res.json({ jobId: req.params.id, ...job });
 });
 
+// Maps a Drive file's real mimeType to the correct local extension. These
+// become file:// URLs handed straight to Chromium, which partly relies on
+// extension for MIME sniffing - so a mismatched guess (e.g. a transparent
+// PNG saved as .jpg) can misrender. Falls back to the old key-name guess
+// only if metadata lookup fails or the mimeType isn't in this table.
+const MIME_TO_EXT = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/svg+xml": ".svg",
+  "video/mp4": ".mp4",
+  "video/quicktime": ".mov",
+  "video/webm": ".webm",
+  "audio/mpeg": ".mp3",
+  "audio/wav": ".wav",
+  "audio/x-wav": ".wav",
+  "audio/mp4": ".m4a",
+  "audio/ogg": ".ogg",
+};
+
 async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
@@ -127,7 +148,18 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
       const fileId = resolved[key];
       const targetKey = key.slice(0, -"DriveFileId".length) + "Url";
       const keyLower = key.toLowerCase();
-      const ext = keyLower.includes("audio") ? ".mp3" : keyLower.includes("video") ? ".mp4" : ".jpg";
+
+      let ext;
+      try {
+        const meta = await getFileMetadata(fileId);
+        ext = MIME_TO_EXT[meta.mimeType];
+      } catch (err) {
+        console.error(`Could not fetch Drive metadata for ${fileId}, falling back to name-based guess:`, err.message);
+      }
+      if (!ext) {
+        ext = keyLower.includes("audio") ? ".mp3" : keyLower.includes("video") ? ".mp4" : ".jpg";
+      }
+
       const localPath = path.join(dir, `scene-${sceneIndex}-${keyPrefix}${key}${ext}`);
       await downloadFile(fileId, localPath);
       resolved[targetKey] = `file://${localPath}`;
@@ -158,15 +190,27 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
 
+    // Scene-level audioDriveFileId (per-scene voiceover) is resolved here,
+    // outside the classic-vs-scene-graph branch below, so it works
+    // identically for both scene formats. Previously this only ever ended
+    // up on scene.props, which scene-graph (objects[]) scenes don't have -
+    // meaning per-scene audio silently never played for any scene built
+    // with the newer objects[] format.
+    let sceneAudioUrl;
+    if (scene.audioDriveFileId) {
+      const resolved = await resolveAssets({ audioDriveFileId: scene.audioDriveFileId }, i, "scene-audio-");
+      sceneAudioUrl = resolved.audioUrl;
+    }
+
     if (Array.isArray(scene.objects)) {
       const resolvedObjects = [];
       for (let o = 0; o < scene.objects.length; o++) {
         resolvedObjects.push(await resolveAssets(scene.objects[o], i, `obj${o}-`));
       }
-      resolvedScenes.push({ ...scene, objects: resolvedObjects });
+      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, objects: resolvedObjects });
     } else {
       const props = await resolveAssets(scene.props || {}, i, "");
-      resolvedScenes.push({ ...scene, props });
+      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, props });
     }
   }
 

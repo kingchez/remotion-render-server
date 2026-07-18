@@ -1,4 +1,5 @@
 import { computeMotion } from "../motion";
+import { resolveFont } from "../fonts";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 
 export const Text = ({
@@ -30,7 +31,7 @@ export const Text = ({
         opacity: style.opacity,
         fontSize: size,
         fontWeight: weight,
-        fontFamily: font,
+        fontFamily: resolveFont(font),
         color,
         textAlign: align,
         maxWidth: `${maxWidth}%`,
