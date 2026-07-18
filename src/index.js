@@ -34,6 +34,7 @@ app.post("/renders", async (req, res) => {
     outputDriveFolderId,
     orientation = "vertical",
     look,
+    music,
     callbackUrl,
   } = req.body || {};
 
@@ -70,7 +71,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, callbackUrl }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, music, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -126,7 +127,7 @@ const MIME_TO_EXT = {
   "audio/ogg": ".ogg",
 };
 
-async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, callbackUrl }) {
+async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, music, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -202,15 +203,33 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
       sceneAudioUrl = resolved.audioUrl;
     }
 
+    // One-shot sound effects (whoosh/riser/click) - each entry can be
+    // {driveFileId, atFrame, volume} or already {url, atFrame, volume}.
+    // Resolved the same way any other Drive asset is, reusing the generic
+    // resolver above rather than duplicating the download/extension logic.
+    let resolvedSfx = scene.sfx;
+    if (Array.isArray(scene.sfx)) {
+      resolvedSfx = [];
+      for (let fxIdx = 0; fxIdx < scene.sfx.length; fxIdx++) {
+        const fx = scene.sfx[fxIdx] || {};
+        if (fx.driveFileId) {
+          const resolved = await resolveAssets({ audioDriveFileId: fx.driveFileId }, i, `sfx${fxIdx}-`);
+          resolvedSfx.push({ atFrame: fx.atFrame, volume: fx.volume, url: resolved.audioUrl });
+        } else {
+          resolvedSfx.push(fx);
+        }
+      }
+    }
+
     if (Array.isArray(scene.objects)) {
       const resolvedObjects = [];
       for (let o = 0; o < scene.objects.length; o++) {
         resolvedObjects.push(await resolveAssets(scene.objects[o], i, `obj${o}-`));
       }
-      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, objects: resolvedObjects });
+      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, objects: resolvedObjects });
     } else {
       const props = await resolveAssets(scene.props || {}, i, "");
-      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, props });
+      resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, props });
     }
   }
 
@@ -222,7 +241,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   }
 
   const outputPath = path.join(dir, "output.mp4");
-  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look });
+  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music });
 
   const uploadResult = await uploadFile(outputPath, outputDriveFolderId, "video/mp4");
 

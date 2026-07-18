@@ -30,6 +30,7 @@ import { FilmLook } from "./components/FilmLook";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
+import { createMusicVolumeFn } from "./audio";
 
 // The full style library. Every scene picks one of these by name, OR a
 // scene can instead use `objects: [...]` (the scene-graph format) with
@@ -107,7 +108,7 @@ const TransitionWrapper = ({
   return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
 };
 
-export const SceneVideo = ({ scenes, audioUrl, look }) => {
+export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
   // Precompute each scene's actual (possibly overlap-extended) timing.
   // Normal case (no transitions specified anywhere): behaves exactly like
   // the old simple sequential loop - fully backward compatible.
@@ -124,14 +125,42 @@ export const SceneVideo = ({ scenes, audioUrl, look }) => {
 
     const from = cumulativeStart - frontExtend;
     const durationInFrames = scene.durationInFrames + frontExtend + backExtend;
+    // The scene's real timing, ignoring transition overlap - this is what
+    // voiceover ducking keys off, not the visually-extended Sequence window.
+    const logicalFrom = cumulativeStart;
     cumulativeStart += scene.durationInFrames;
 
-    return { scene, from, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration };
+    return { scene, from, durationInFrames, logicalFrom, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration };
   });
+
+  // Background-music ducking: find every frame range where a scene has its
+  // own voiceover (audioUrl), then build a volume-envelope function for the
+  // whole-video music track that dips down (with a short fade) during those
+  // ranges. Defaults to on, since it's the expected behavior whenever a
+  // background track and per-scene voiceovers are both present - pass
+  // `music: { duck: false }` to disable.
+  const {
+    volume: musicBaseVolume = 1,
+    duck = true,
+    duckVolume = 0.25,
+    duckFadeFrames = 15,
+  } = music || {};
+
+  const voiceoverWindows = timedScenes
+    .filter((t) => t.scene.audioUrl ?? t.scene.props?.audioUrl)
+    .map((t) => ({ start: t.logicalFrom, end: t.logicalFrom + t.scene.durationInFrames }));
+
+  const musicVolume = duck
+    ? createMusicVolumeFn(voiceoverWindows, {
+        normalVolume: musicBaseVolume,
+        duckedVolume: duckVolume,
+        fadeFrames: duckFadeFrames,
+      })
+    : musicBaseVolume;
 
   return (
     <AbsoluteFill>
-      {audioUrl ? <Audio src={audioUrl} /> : null}
+      {audioUrl ? <Audio src={audioUrl} volume={musicVolume} /> : null}
       {timedScenes.map((t, i) => {
         const { scene, from, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration, nextTransitionIn, nextTransitionDuration } = t;
 
@@ -143,6 +172,14 @@ export const SceneVideo = ({ scenes, audioUrl, look }) => {
         // formats; scene.props?.audioUrl is kept as a fallback for older
         // classic-format scenes that set it there directly.
         const sceneAudioUrl = scene.audioUrl ?? scene.props?.audioUrl;
+        const sceneAudioVolume = scene.audioVolume ?? scene.props?.audioVolume ?? 1;
+
+        // One-shot sound effects (whoosh on a transition, riser building
+        // tension, click on a text pop-in, etc.) - a scene can carry a list
+        // of these, each starting at its own frame offset within the scene.
+        // Resolved server-side the same way any other Drive asset is
+        // (sfx[].driveFileId -> sfx[].url), see src/index.js.
+        const sfx = scene.sfx ?? scene.props?.sfx;
 
         // Any scene can carry optional word-level captions (from WhisperX
         // timing) that overlay on top of whatever style is being used -
@@ -176,7 +213,16 @@ export const SceneVideo = ({ scenes, audioUrl, look }) => {
 
         return (
           <Sequence key={i} from={from} durationInFrames={durationInFrames}>
-            {sceneAudioUrl ? <Audio src={sceneAudioUrl} /> : null}
+            {sceneAudioUrl ? <Audio src={sceneAudioUrl} volume={sceneAudioVolume} /> : null}
+            {Array.isArray(sfx)
+              ? sfx.map((fx, fxIdx) =>
+                  fx?.url ? (
+                    <Sequence key={`sfx-${fxIdx}`} from={fx.atFrame ?? 0}>
+                      <Audio src={fx.url} volume={fx.volume ?? 1} />
+                    </Sequence>
+                  ) : null
+                )
+              : null}
             <TransitionWrapper
               durationInFrames={durationInFrames}
               frontExtend={frontExtend}
