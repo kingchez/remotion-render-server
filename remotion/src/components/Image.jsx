@@ -15,6 +15,8 @@ export const Image = ({
   // color background (like a green screen), not arbitrary photo
   // backgrounds. See ../chromaKey.js for the tradeoffs.
   chromaKey,
+  // New: CSS mix-blend-mode, e.g. "multiply" | "difference" | "lighter".
+  blendMode,
   animations = [{ type: "fadeIn", start: 0, duration: 15 }],
 }) => {
   const frame = useCurrentFrame();
@@ -39,6 +41,7 @@ export const Image = ({
         height,
         borderRadius,
         overflow: "hidden",
+        mixBlendMode: blendMode || "normal",
         boxShadow: highlightActive ? `0 0 0 6px ${highlightColor}` : "none",
       }}
     >
