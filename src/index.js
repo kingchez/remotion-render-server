@@ -79,25 +79,43 @@ app.post("/renders", async (req, res) => {
         createdAt: jobs.get(jobId)?.createdAt,
       });
       cleanup(jobId);
-      fireCallback(callbackUrl, { jobId, status: "error", error: err.message });
+      fireCallback(callbackUrl, { source: "render", job_id: jobId, status: "error", error: err.message });
     }
   );
 });
 
-// Best-effort POST to the caller's callback URL when a job finishes.
-// Never throws - a broken callback URL shouldn't affect the render itself,
-// since polling GET /renders/:id still works regardless.
+// POST to the caller's callback URL when a job finishes, with retries -
+// matching the chatterbox-tts / whisperx webhook_sender.py behavior (4
+// attempts, 2s/5s/15s backoff) so a momentary n8n blip doesn't silently
+// drop the result. GET /renders/:id remains the fallback if all 4 fail;
+// the in-memory job record is never cleared automatically, so a manual
+// pull always has something to serve.
+const CALLBACK_BACKOFF_MS = [2000, 5000, 15000];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function fireCallback(callbackUrl, payload) {
   if (!callbackUrl) return;
-  try {
-    await fetch(callbackUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch (err) {
-    console.error(`Callback to ${callbackUrl} failed:`, err.message);
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const res = await fetch(callbackUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        console.log(`Callback to ${callbackUrl} delivered (job_id=${payload.job_id}, status=${payload.status}) on attempt ${attempt}.`);
+        return;
+      }
+      console.warn(`Callback to ${callbackUrl} returned HTTP ${res.status} on attempt ${attempt}.`);
+    } catch (err) {
+      console.warn(`Callback to ${callbackUrl} failed on attempt ${attempt}:`, err.message);
+    }
+    if (attempt < 4) await sleep(CALLBACK_BACKOFF_MS[attempt - 1]);
   }
+  console.error(`Callback to ${callbackUrl} failed after 4 attempts (job_id=${payload.job_id}). Giving up - check GET /renders/${payload.job_id} manually.`);
 }
 
 app.get("/renders/:id", (req, res) => {
@@ -252,7 +270,14 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   });
 
   cleanup(jobId); // nothing stays on the VPS after upload
-  fireCallback(callbackUrl, { jobId, status: "done", result: uploadResult });
+  fireCallback(callbackUrl, {
+    source: "render",
+    job_id: jobId,
+    status: "done",
+    file_id: uploadResult.fileId,
+    web_view_link: uploadResult.webViewLink,
+    web_content_link: uploadResult.webContentLink,
+  });
 }
 
 app.listen(PORT, () => {
