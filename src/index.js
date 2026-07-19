@@ -87,9 +87,15 @@ app.post("/renders", async (req, res) => {
 // POST to the caller's callback URL when a job finishes, with retries -
 // matching the chatterbox-tts / whisperx webhook_sender.py behavior (4
 // attempts, 2s/5s/15s backoff) so a momentary n8n blip doesn't silently
-// drop the result. GET /renders/:id remains the fallback if all 4 fail;
-// the in-memory job record is never cleared automatically, so a manual
-// pull always has something to serve.
+// drop the result. GET /renders/:id remains the fallback if all 4 fail.
+//
+// Memory hygiene: the in-memory job record is deleted the moment it's no
+// longer needed - either right here on a successful webhook delivery, or
+// in GET /renders/:id below on a successful manual pull of a terminal job.
+// Same "consumed once" rule as chatterbox-tts/whisperx's disk-backed job
+// stores, just applied to this in-memory Map instead of a file, since an
+// unbounded Map on a memory-constrained VPS is exactly as real a risk as
+// unbounded disk usage.
 const CALLBACK_BACKOFF_MS = [2000, 5000, 15000];
 
 function sleep(ms) {
@@ -106,7 +112,8 @@ async function fireCallback(callbackUrl, payload) {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        console.log(`Callback to ${callbackUrl} delivered (job_id=${payload.job_id}, status=${payload.status}) on attempt ${attempt}.`);
+        console.log(`Callback to ${callbackUrl} delivered (job_id=${payload.job_id}, status=${payload.status}) on attempt ${attempt}. Clearing job record.`);
+        jobs.delete(payload.job_id);
         return;
       }
       console.warn(`Callback to ${callbackUrl} returned HTTP ${res.status} on attempt ${attempt}.`);
@@ -115,13 +122,20 @@ async function fireCallback(callbackUrl, payload) {
     }
     if (attempt < 4) await sleep(CALLBACK_BACKOFF_MS[attempt - 1]);
   }
-  console.error(`Callback to ${callbackUrl} failed after 4 attempts (job_id=${payload.job_id}). Giving up - check GET /renders/${payload.job_id} manually.`);
+  console.error(`Callback to ${callbackUrl} failed after 4 attempts (job_id=${payload.job_id}). Giving up - job record kept in memory for manual GET /renders/${payload.job_id} pull.`);
 }
 
 app.get("/renders/:id", (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: "job not found" });
-  res.json({ jobId: req.params.id, ...job });
+  const body = { jobId: req.params.id, ...job };
+  // Only clear on a terminal state, and only after building the response
+  // body above - a job still "pending"/"processing" must stay in the map
+  // so the next poll can still find it.
+  if (job.status === "done" || job.status === "error") {
+    jobs.delete(req.params.id);
+  }
+  res.json(body);
 });
 
 // Maps a Drive file's real mimeType to the correct local extension. These
