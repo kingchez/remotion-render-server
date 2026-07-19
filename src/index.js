@@ -138,6 +138,25 @@ app.get("/renders/:id", (req, res) => {
   res.json(body);
 });
 
+// Admin cleanup, matching the chatterbox-tts / whisperx prune_jobs
+// convention. In practice the job map self-cleans on every successful
+// webhook delivery or terminal GET pull (see above), so this is a backstop
+// for the rare case a job's callback failed all 4 retries AND nobody ever
+// manually pulled it - it would otherwise sit in memory until the process
+// restarts. older_than_days is compared against each job's createdAt.
+app.delete("/admin/prune_jobs", (req, res) => {
+  const olderThanDays = parseFloat(req.query.older_than_days) || 7;
+  const cutoffMs = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
+  let prunedCount = 0;
+  for (const [jobId, job] of jobs.entries()) {
+    if (typeof job.createdAt === "number" && job.createdAt < cutoffMs) {
+      jobs.delete(jobId);
+      prunedCount++;
+    }
+  }
+  res.json({ prunedCount, remainingCount: jobs.size, olderThanDays });
+});
+
 // Maps a Drive file's real mimeType to the correct local extension. These
 // become file:// URLs handed straight to Chromium, which partly relies on
 // extension for MIME sniffing - so a mismatched guess (e.g. a transparent
