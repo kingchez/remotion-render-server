@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { v4: uuidv4 } = require("uuid");
-const { downloadFile, uploadFile, getFileMetadata } = require("./drive");
+const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo } = require("./render");
 
@@ -11,6 +11,11 @@ const app = express();
 app.use(express.json({ limit: "5mb" }));
 
 const PORT = process.env.PORT || 3000;
+
+// Used to build the output_url handed to the caller's webhook/GET response -
+// this server no longer uploads anywhere itself, so the caller (n8n) needs
+// a real URL back to this server to actually fetch the rendered file.
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://render.viralnotely.com";
 
 // In-memory job store. Simple on purpose: this server processes one render
 // at a time and doesn't need to survive restarts mid-job for now.
@@ -31,7 +36,6 @@ app.post("/renders", async (req, res) => {
   const {
     scenes,
     audioDriveFileId,
-    outputDriveFolderId,
     orientation = "vertical",
     look,
     music,
@@ -46,9 +50,6 @@ app.post("/renders", async (req, res) => {
 
   if (!Array.isArray(scenes) || scenes.length === 0) {
     return res.status(400).json({ error: "scenes[] is required" });
-  }
-  if (!outputDriveFolderId) {
-    return res.status(400).json({ error: "outputDriveFolderId is required" });
   }
   // Each scene needs durationInFrames, plus EITHER the classic
   // component/props format OR the scene-graph objects[] format.
@@ -71,7 +72,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, music, callbackUrl }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -128,14 +129,49 @@ async function fireCallback(callbackUrl, payload) {
 app.get("/renders/:id", (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: "job not found" });
-  const body = { jobId: req.params.id, ...job };
-  // Only clear on a terminal state, and only after building the response
-  // body above - a job still "pending"/"processing" must stay in the map
-  // so the next poll can still find it.
-  if (job.status === "done" || job.status === "error") {
+
+  const body = { jobId: req.params.id, status: job.status, createdAt: job.createdAt };
+  if (job.status === "done") {
+    // Just the fetch URL here, not the file itself - a status check must
+    // stay cheap and repeatable. GET /renders/:id/output below is the only
+    // place that actually consumes (and cleans up) the render.
+    body.output_url = `${PUBLIC_BASE_URL}/renders/${req.params.id}/output`;
+  }
+  if (job.status === "error") {
+    body.error = job.error;
+    // Nothing on disk to preserve for a failed job, so safe to clear here.
     jobs.delete(req.params.id);
   }
   res.json(body);
+});
+
+// The actual consumption point. The rendered file stays on disk and the job
+// record stays in memory until this succeeds - a webhook that never arrives,
+// or n8n being down for an hour, can never lose a finished render. This
+// mirrors the same "persists until pulled, then deleted" contract already
+// used by chatterbox-tts/whisperx's manual-pull endpoints (see the pipeline
+// manual, safety-net section) - not a new pattern, just applied here too.
+app.get("/renders/:id/output", (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: "job not found" });
+  if (job.status !== "done" || !job.outputPath) {
+    return res.status(409).json({ error: `job is not ready (status: ${job.status})` });
+  }
+  if (!fs.existsSync(job.outputPath)) {
+    return res.status(410).json({ error: "output no longer available (already delivered and cleaned up, or pruned)" });
+  }
+
+  res.sendFile(job.outputPath, (err) => {
+    if (err) {
+      // Send failed partway (e.g. connection dropped) - leave everything in
+      // place so a retry can still succeed. Do NOT clean up here.
+      console.error(`Failed to send output for job ${req.params.id}:`, err.message);
+      return;
+    }
+    jobs.delete(req.params.id);
+    cleanup(req.params.id);
+    console.log(`Output for job ${req.params.id} delivered and cleaned up.`);
+  });
 });
 
 // Admin cleanup, matching the chatterbox-tts / whisperx prune_jobs
@@ -151,6 +187,7 @@ app.delete("/admin/prune_jobs", (req, res) => {
   for (const [jobId, job] of jobs.entries()) {
     if (typeof job.createdAt === "number" && job.createdAt < cutoffMs) {
       jobs.delete(jobId);
+      cleanup(jobId); // remove any on-disk output nobody ever fetched via /output
       prunedCount++;
     }
   }
@@ -178,7 +215,7 @@ const MIME_TO_EXT = {
   "audio/ogg": ".ogg",
 };
 
-async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId, orientation, look, music, callbackUrl }) {
+async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -294,22 +331,22 @@ async function processJob(jobId, { scenes, audioDriveFileId, outputDriveFolderId
   const outputPath = path.join(dir, "output.mp4");
   await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music });
 
-  const uploadResult = await uploadFile(outputPath, outputDriveFolderId, "video/mp4");
-
+  // No Drive upload here anymore - delivery is downstream, via n8n. The
+  // rendered file stays on local disk (not cleaned up) until it's actually
+  // been fetched through GET /renders/:id/output, so a webhook failure -
+  // even all 4 retries failing - never loses the finished render, only
+  // delays its delivery.
   jobs.set(jobId, {
     status: "done",
     createdAt: jobs.get(jobId).createdAt,
-    result: uploadResult,
+    outputPath,
   });
 
-  cleanup(jobId); // nothing stays on the VPS after upload
   fireCallback(callbackUrl, {
     source: "render",
     job_id: jobId,
     status: "done",
-    file_id: uploadResult.fileId,
-    web_view_link: uploadResult.webViewLink,
-    web_content_link: uploadResult.webContentLink,
+    output_url: `${PUBLIC_BASE_URL}/renders/${jobId}/output`,
   });
 }
 
