@@ -70,7 +70,7 @@ export const calculateTotalFrames = (scenes) => {
 
 // Wraps a scene's content with an optional camera movement (Phase 3).
 // Movement name comes from scene.camera - only feasible movements from
-// the Camera Movements research are implemented (see camera.js).
+// the Camera Movements research are implemented (see camera.jsx).
 const CameraWrapper = ({ movement, durationInFrames, children }) => {
   const frame = useCurrentFrame();
   if (!movement) return children;

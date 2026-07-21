@@ -13,7 +13,7 @@ export const Image = ({
   // Optional true color-based chroma key, e.g. { color: "#00FF00",
   // similarity: 0.4, smoothness: 0.08 } - only removes a uniform key
   // color background (like a green screen), not arbitrary photo
-  // backgrounds. See ../chromaKey.js for the tradeoffs.
+  // backgrounds. See ../chromaKey.jsx for the tradeoffs.
   chromaKey,
   // New: CSS mix-blend-mode, e.g. "multiply" | "difference" | "lighter".
   blendMode,
