@@ -180,8 +180,10 @@ app.get("/renders/:id/output", (req, res) => {
 // for the rare case a job's callback failed all 4 retries AND nobody ever
 // manually pulled it - it would otherwise sit in memory until the process
 // restarts. older_than_days is compared against each job's createdAt.
-app.delete("/admin/prune_jobs", (req, res) => {
-  const olderThanDays = parseFloat(req.query.older_than_days) || 7;
+// Shared by the manual admin endpoint below and the automatic internal
+// timer (see near the bottom of this file) - one implementation, two
+// triggers, so there's no risk of the two ever drifting apart.
+function pruneStaleJobs(olderThanDays) {
   const cutoffMs = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
   let prunedCount = 0;
   for (const [jobId, job] of jobs.entries()) {
@@ -191,7 +193,12 @@ app.delete("/admin/prune_jobs", (req, res) => {
       prunedCount++;
     }
   }
-  res.json({ prunedCount, remainingCount: jobs.size, olderThanDays });
+  return { prunedCount, remainingCount: jobs.size, olderThanDays };
+}
+
+app.delete("/admin/prune_jobs", (req, res) => {
+  const olderThanDays = parseFloat(req.query.older_than_days) || 7;
+  res.json(pruneStaleJobs(olderThanDays));
 });
 
 // Maps a Drive file's real mimeType to the correct local extension. These
@@ -349,6 +356,22 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     output_url: `${PUBLIC_BASE_URL}/renders/${jobId}/output`,
   });
 }
+
+// Automatic internal cleanup - undelivered render output (a job whose
+// webhook failed all 4 retries AND nobody ever called GET /renders/:id/output)
+// would otherwise sit on disk forever with nothing external ever prompting
+// its removal. Runs on its own schedule inside this process; /admin/prune_jobs
+// above still exists for an on-demand/custom-cutoff run, but isn't required
+// for this to happen.
+const AUTO_PRUNE_OLDER_THAN_DAYS = 2;
+const AUTO_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
+
+setInterval(() => {
+  const result = pruneStaleJobs(AUTO_PRUNE_OLDER_THAN_DAYS);
+  if (result.prunedCount > 0) {
+    console.log(`Auto-prune: removed ${result.prunedCount} job(s) older than ${AUTO_PRUNE_OLDER_THAN_DAYS} day(s). ${result.remainingCount} remaining.`);
+  }
+}, AUTO_PRUNE_INTERVAL_MS);
 
 app.listen(PORT, () => {
   console.log(`Render server listening on port ${PORT}`);
