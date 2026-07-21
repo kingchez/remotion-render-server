@@ -17,8 +17,11 @@ const PORT = process.env.PORT || 3000;
 // a real URL back to this server to actually fetch the rendered file.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://render.viralnotely.com";
 
-// In-memory job store. Simple on purpose: this server processes one render
-// at a time and doesn't need to survive restarts mid-job for now.
+// In-memory job store, backed by disk for anything that survives a crash/
+// redeploy - see rehydrateJobsFromDisk() below, called once at startup.
+// A job's real "createdAt" for done jobs is the output file's own mtime,
+// not a value kept only in this Map, specifically so a restart can
+// reconstruct it without needing any date encoded into a filename.
 const jobs = new Map();
 
 function tempDirFor(jobId) {
@@ -28,6 +31,53 @@ function tempDirFor(jobId) {
 function cleanup(jobId) {
   const dir = tempDirFor(jobId);
   fs.rm(dir, { recursive: true, force: true }, () => {});
+}
+
+// Runs once at startup. A crash or redeploy wipes the in-memory `jobs` Map,
+// but anything already written to disk survives untouched - including each
+// output.mp4's own mtime, set by the filesystem the moment the render
+// finished, which needs no separate date-tagging scheme to stay accurate
+// across a restart. For every leftover job directory found:
+//   - has a finished output.mp4, still within the 2-day window -> rehydrate
+//     it back into `jobs` as status "done", so GET /renders/:id/output can
+//     still serve it exactly as if the process never restarted.
+//   - has a finished output.mp4, already past 2 days -> delete it now
+//     rather than waiting for the next auto-prune pass.
+//   - has no output.mp4 at all -> it was mid-render when the crash/restart
+//     happened; that render can never be resumed, so delete it immediately.
+function rehydrateJobsFromDisk() {
+  const rendersRoot = path.join(os.tmpdir(), "renders");
+  if (!fs.existsSync(rendersRoot)) return;
+
+  const cutoffMs = Date.now() - AUTO_PRUNE_OLDER_THAN_DAYS * 24 * 60 * 60 * 1000;
+  let rehydrated = 0;
+  let discarded = 0;
+
+  for (const jobId of fs.readdirSync(rendersRoot)) {
+    const dir = path.join(rendersRoot, jobId);
+    const outputPath = path.join(dir, "output.mp4");
+
+    if (!fs.existsSync(outputPath)) {
+      // Never finished rendering before the crash/restart - unrecoverable.
+      fs.rmSync(dir, { recursive: true, force: true });
+      discarded++;
+      continue;
+    }
+
+    const finishedAtMs = fs.statSync(outputPath).mtimeMs;
+    if (finishedAtMs < cutoffMs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      discarded++;
+      continue;
+    }
+
+    jobs.set(jobId, { status: "done", createdAt: finishedAtMs, outputPath });
+    rehydrated++;
+  }
+
+  if (rehydrated > 0 || discarded > 0) {
+    console.log(`Startup recovery: rehydrated ${rehydrated} deliverable job(s), discarded ${discarded} unrecoverable/expired one(s).`);
+  }
 }
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -365,6 +415,11 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
 // for this to happen.
 const AUTO_PRUNE_OLDER_THAN_DAYS = 2;
 const AUTO_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
+
+// Recover whatever's on disk before accepting any requests, so a GET to an
+// old job_id right after a restart has a chance of still working instead
+// of always 404ing until the next render happens to overwrite that jobId.
+rehydrateJobsFromDisk();
 
 setInterval(() => {
   const result = pruneStaleJobs(AUTO_PRUNE_OLDER_THAN_DAYS);
