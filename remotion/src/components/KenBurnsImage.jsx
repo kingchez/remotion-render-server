@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 // Slow zoom on a static image + fade-in/out caption text
 export const KenBurnsImage = ({ imageUrl, text, durationInFrames }) => {
@@ -16,7 +17,7 @@ export const KenBurnsImage = ({ imageUrl, text, durationInFrames }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-        <Img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img src={normalizeAssetUrl(imageUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       </AbsoluteFill>
       {text ? (
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>

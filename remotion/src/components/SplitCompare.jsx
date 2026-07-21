@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 export const SplitCompare = ({ leftImageUrl, rightImageUrl, leftLabel, rightLabel }) => {
   const frame = useCurrentFrame();
@@ -8,7 +9,7 @@ export const SplitCompare = ({ leftImageUrl, rightImageUrl, leftLabel, rightLabe
   return (
     <AbsoluteFill style={{ backgroundColor: "black", opacity: fade }}>
       <AbsoluteFill style={{ width: "50%" }}>
-        <Img src={leftImageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img src={normalizeAssetUrl(leftImageUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         {leftLabel ? (
           <div style={{
             position: "absolute", top: 40, left: 40, background: "rgba(0,0,0,0.7)", color: "white",
@@ -19,7 +20,7 @@ export const SplitCompare = ({ leftImageUrl, rightImageUrl, leftLabel, rightLabe
         ) : null}
       </AbsoluteFill>
       <AbsoluteFill style={{ width: "50%", left: "50%" }}>
-        <Img src={rightImageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img src={normalizeAssetUrl(rightImageUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         {rightLabel ? (
           <div style={{
             position: "absolute", top: 40, right: 40, background: "rgba(0,0,0,0.7)", color: "white",

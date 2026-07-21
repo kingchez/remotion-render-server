@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 // Simplified "drawing reveal": the illustration wipes in left-to-right like
 // it's being drawn. A true stroke-by-stroke SVG version can replace this
@@ -15,7 +16,7 @@ export const WhiteboardSketch = ({ imageUrl, text, durationInFrames }) => {
         position: "absolute", inset: 0,
         clipPath: `inset(0 ${100 - revealPct}% 0 0)`,
       }}>
-        <Img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        <Img src={normalizeAssetUrl(imageUrl)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       </div>
       {text ? (
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 100 }}>

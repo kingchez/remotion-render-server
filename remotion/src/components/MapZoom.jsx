@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 function PinIcon() {
   return (
@@ -18,7 +19,7 @@ export const MapZoom = ({ imageUrl, label, fromScale = 1, toScale = 1.3, duratio
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-        <Img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img src={normalizeAssetUrl(imageUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       </AbsoluteFill>
       {label ? (
         <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: 60 }}>

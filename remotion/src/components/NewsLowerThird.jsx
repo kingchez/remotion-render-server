@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 export const NewsLowerThird = ({ backgroundImageUrl, headline, subtext, durationInFrames }) => {
   const frame = useCurrentFrame();
@@ -11,7 +12,7 @@ export const NewsLowerThird = ({ backgroundImageUrl, headline, subtext, duration
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       {backgroundImageUrl ? (
-        <Img src={backgroundImageUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Img src={normalizeAssetUrl(backgroundImageUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : null}
       <AbsoluteFill style={{ justifyContent: "flex-end" }}>
         <div style={{ transform: `translateY(${offset}px)` }}>

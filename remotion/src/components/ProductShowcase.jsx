@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
+import { normalizeAssetUrl } from "../assetUrl";
 
 export const ProductShowcase = ({ imageUrl, title, price, calloutText, durationInFrames }) => {
   const frame = useCurrentFrame();
@@ -8,7 +9,7 @@ export const ProductShowcase = ({ imageUrl, title, price, calloutText, durationI
   return (
     <AbsoluteFill style={{ backgroundColor: "white" }}>
       <AbsoluteFill style={{ transform: `scale(${scale})` }}>
-        <Img src={imageUrl} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        <Img src={normalizeAssetUrl(imageUrl)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
       </AbsoluteFill>
       <AbsoluteFill style={{ justifyContent: "flex-end", padding: 60 }}>
         <div style={{ opacity: labelIn }}>
