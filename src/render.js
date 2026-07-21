@@ -11,6 +11,15 @@ function getBundleLocation() {
   if (!bundleLocationPromise) {
     bundleLocationPromise = bundle({
       entryPoint: path.join(__dirname, "..", "remotion", "src", "index.jsx"),
+      // Explicit, not inferred: bundle()'s default publicDir resolution is
+      // ambiguous between "relative to entryPoint" and "relative to process
+      // cwd" depending on Remotion version/context, and our Dockerfile runs
+      // `node src/index.js` from /app (repo root), one level above the
+      // actual remotion/public folder. Without this, local illustration
+      // assets under remotion/public/illustrations/ 404 at render time
+      // (confirmed: "Error loading image with src: http://localhost:PORT/
+      // illustrations/...") even though the files exist in the repo.
+      publicDir: path.join(__dirname, "..", "remotion", "public"),
     });
   }
   return bundleLocationPromise;
