@@ -14,7 +14,7 @@ import { loadFont as loadDancingScript } from "@remotion/google-fonts/DancingScr
 // loadFont() registers the @font-face and returns the exact fontFamily
 // string Chromium needs to actually use the loaded font during render.
 const inter = loadInter();
-const poppins = loadPoppins({ weights: ["400", "600", "700"] });
+const poppins = loadPoppins("normal", { weights: ["400", "600", "700"] });
 const anton = loadAnton();
 const script = loadDancingScript();
 
