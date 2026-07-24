@@ -27,6 +27,7 @@ import { AnimatedCaptions } from "./components/AnimatedCaptions";
 import { Icon } from "./components/Icon";
 import { TiltShiftOverlay } from "./components/TiltShiftOverlay";
 import { FilmLook } from "./components/FilmLook";
+import { HalftoneOverlay } from "./components/HalftoneOverlay";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -242,6 +243,24 @@ export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
       })}
       {look?.grain || look?.vignette ? (
         <FilmLook grain={look?.grain} vignette={look?.vignette} grainOpacity={look?.grainOpacity} />
+      ) : null}
+      {look?.halftone ? (
+        // Whole-video overlay only (dot screen + paper grain) - the duotone
+        // content-remap mode of HalftoneOverlay needs `children`, which isn't
+        // available at this layer. To duotone-remap an individual scene's
+        // actual content, wrap that scene's component directly in
+        // <HalftoneOverlay shadowColor={...} highlightColor={...}> instead.
+        <HalftoneOverlay
+          dots={look.halftone.dots ?? true}
+          dotSize={look.halftone.dotSize}
+          dotSpacing={look.halftone.dotSpacing}
+          dotColor={look.halftone.dotColor}
+          dotOpacity={look.halftone.dotOpacity}
+          dotAngle={look.halftone.dotAngle}
+          paperGrain={look.halftone.paperGrain ?? true}
+          paperOpacity={look.halftone.paperOpacity}
+          paperTint={look.halftone.paperTint}
+        />
       ) : null}
     </AbsoluteFill>
   );

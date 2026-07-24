@@ -1,9 +1,10 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
 // Splits text into words and reveals them evenly across the scene duration.
 // If wordTimings is provided (from real voiceover alignment later), it's used
 // instead of the even-split fallback for exact sync.
-export const KineticText = ({ text, wordTimings, durationInFrames, backgroundColor = "#000000" }) => {
+export const KineticText = ({ text, wordTimings, durationInFrames, backgroundColor = "#000000", font = "ui"}) => {
   const frame = useCurrentFrame();
   const words = text.split(" ");
   const perWord = durationInFrames / words.length;
@@ -22,7 +23,7 @@ export const KineticText = ({ text, wordTimings, durationInFrames, backgroundCol
           return (
             <span key={i} style={{
               opacity, transform: `translateY(${translateY}px)`,
-              fontSize: 64, fontWeight: 800, color: "white", fontFamily: "Arial, sans-serif",
+              fontSize: 64, fontWeight: 800, color: "white", fontFamily: resolveFont(font),
             }}>
               {word}
             </span>

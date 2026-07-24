@@ -1,10 +1,11 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
 import { normalizeAssetUrl } from "../assetUrl";
+import { resolveFont } from "../fonts";
 
 // Simplified "drawing reveal": the illustration wipes in left-to-right like
 // it's being drawn. A true stroke-by-stroke SVG version can replace this
 // later once we have vectorized illustrations to work with.
-export const WhiteboardSketch = ({ imageUrl, text, durationInFrames }) => {
+export const WhiteboardSketch = ({ imageUrl, text, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const revealPct = interpolate(frame, [0, durationInFrames * 0.6], [0, 100], {
     extrapolateRight: "clamp",
@@ -21,7 +22,7 @@ export const WhiteboardSketch = ({ imageUrl, text, durationInFrames }) => {
       {text ? (
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 100 }}>
           <div style={{
-            fontSize: 44, fontWeight: 700, color: "#222", fontFamily: "Arial, sans-serif",
+            fontSize: 44, fontWeight: 700, color: "#222", fontFamily: resolveFont(font),
             textAlign: "center", maxWidth: "85%",
           }}>
             {text}

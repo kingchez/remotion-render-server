@@ -1,6 +1,7 @@
 import { interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
-export const AreaChart = ({ title, data, durationInFrames, color = "#4361ee" }) => {
+export const AreaChart = ({ title, data, durationInFrames, color = "#4361ee", font = "ui"}) => {
   const frame = useCurrentFrame();
   const chartWidth = 900;
   const chartHeight = 500;
@@ -21,7 +22,7 @@ export const AreaChart = ({ title, data, durationInFrames, color = "#4361ee" }) 
   return (
     <div style={{
       position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "Arial, sans-serif", background: "linear-gradient(to bottom right, #111827, #1f2937)",
+      fontFamily: resolveFont(font), background: "linear-gradient(to bottom right, #111827, #1f2937)",
     }}>
       <div style={{ position: "relative", width: chartWidth, height: chartHeight, backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 16, padding: 20 }}>
         <svg width={chartWidth} height={chartHeight}>

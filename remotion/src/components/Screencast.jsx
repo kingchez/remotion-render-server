@@ -1,6 +1,7 @@
 import { AbsoluteFill, OffthreadVideo, interpolate, useCurrentFrame } from "remotion";
 import { DeviceFrame } from "./DeviceFrame";
 import { AnimatedCursor } from "./AnimatedCursor";
+import { resolveFont } from "../fonts";
 
 // Recorded screen video + an animated highlight box that draws attention
 // to a specific area (e.g. the n8n node being explained), plus a caption.
@@ -16,6 +17,7 @@ export const Screencast = ({
   deviceFrameUrl, // shown in the fake browser's URL bar
   cursorPoints, // [{x, y, hold, click}] - overlay an animated cursor path
   durationInFrames,
+  font = "ui",
 }) => {
   const frame = useCurrentFrame();
   const highlightEnd = highlightToFrame ?? durationInFrames;
@@ -59,7 +61,7 @@ export const Screencast = ({
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 100 }}>
           <div style={{
             background: "rgba(0,0,0,0.75)", color: "white", padding: "16px 32px",
-            borderRadius: 12, fontSize: 40, fontWeight: 600, fontFamily: "Arial, sans-serif",
+            borderRadius: 12, fontSize: 40, fontWeight: 600, fontFamily: resolveFont(font),
             maxWidth: "85%", textAlign: "center",
           }}>
             {caption}

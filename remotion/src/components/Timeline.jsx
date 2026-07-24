@@ -1,6 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
-export const Timeline = ({ events, durationInFrames }) => {
+export const Timeline = ({ events, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const lineProgress = interpolate(frame, [0, durationInFrames * 0.6], [0, 100], {
     extrapolateRight: "clamp",
@@ -25,14 +26,14 @@ export const Timeline = ({ events, durationInFrames }) => {
               position: "absolute", left: `${leftPct}%`, top: -70,
               transform: `translateX(-50%) scale(${pop})`, opacity: pop, textAlign: "center",
             }}>
-              <div style={{ color: "#2E86FF", fontWeight: 800, fontSize: 24, fontFamily: "Arial, sans-serif" }}>
+              <div style={{ color: "#2E86FF", fontWeight: 800, fontSize: 24, fontFamily: resolveFont(font) }}>
                 {ev.date}
               </div>
               <div style={{
                 width: 20, height: 20, borderRadius: "50%", background: "#2E86FF", margin: "8px auto",
               }} />
               <div style={{
-                color: "white", fontSize: 22, fontFamily: "Arial, sans-serif", maxWidth: 220,
+                color: "white", fontSize: 22, fontFamily: resolveFont(font), maxWidth: 220,
               }}>
                 {ev.label}
               </div>

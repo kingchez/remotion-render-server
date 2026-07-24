@@ -1,4 +1,5 @@
 import { interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
 function Check() {
   return (
@@ -11,7 +12,7 @@ function Check() {
 // steps: ["Connect Drive", "Build workflow", "Add ElevenLabs", "Deploy"]
 // Auto-advances through the steps across the scene's duration - each step
 // becomes active in turn, then marked done, rather than a static snapshot.
-export const ProgressSteps = ({ steps, durationInFrames }) => {
+export const ProgressSteps = ({ steps, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const perStep = durationInFrames / steps.length;
   const rawIndex = frame / perStep;
@@ -22,7 +23,7 @@ export const ProgressSteps = ({ steps, durationInFrames }) => {
   return (
     <div style={{
       position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-      backgroundColor: "#0F1115", fontFamily: "Arial, sans-serif",
+      backgroundColor: "#0F1115", fontFamily: resolveFont(font),
     }}>
       <div style={{ display: "flex", alignItems: "flex-start" }}>
         {steps.map((step, i) => {

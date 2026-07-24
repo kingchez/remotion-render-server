@@ -1,9 +1,10 @@
 import { AbsoluteFill } from "remotion";
+import { resolveFont } from "../fonts";
 
 // Wraps children in a fake browser window (rounded corners, traffic-light
 // dots, URL bar) so a raw screen recording reads as "a presented browser",
 // not a raw capture.
-export const DeviceFrame = ({ url, children }) => {
+export const DeviceFrame = ({ url, children, font = "ui"}) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#1a1a1a", padding: 40 }}>
       <div style={{
@@ -20,7 +21,7 @@ export const DeviceFrame = ({ url, children }) => {
           {url ? (
             <div style={{
               marginLeft: 20, background: "#1a1a1a", color: "#aaa", fontSize: 16,
-              padding: "6px 20px", borderRadius: 8, fontFamily: "Arial, sans-serif", flex: 1,
+              padding: "6px 20px", borderRadius: 8, fontFamily: resolveFont(font), flex: 1,
               maxWidth: 500,
             }}>
               {url}

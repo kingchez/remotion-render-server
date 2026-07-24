@@ -1,6 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
-export const QuoteCard = ({ quote, author, durationInFrames }) => {
+export const QuoteCard = ({ quote, author, durationInFrames, font = "serif"}) => {
   const frame = useCurrentFrame();
   const scale = interpolate(frame, [0, 20], [0.85, 1], { extrapolateRight: "clamp" });
   const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
@@ -13,12 +14,12 @@ export const QuoteCard = ({ quote, author, durationInFrames }) => {
     }}>
       <div style={{ transform: `scale(${scale})`, opacity, textAlign: "center" }}>
         <div style={{
-          fontSize: 58, fontWeight: 700, color: "white", fontFamily: "Georgia, serif", lineHeight: 1.3,
+          fontSize: 58, fontWeight: 700, color: "white", fontFamily: resolveFont(font), lineHeight: 1.3,
         }}>
           "{quote}"
         </div>
         {author ? (
-          <div style={{ marginTop: 24, fontSize: 30, color: "#DDE6FF", fontFamily: "Arial, sans-serif" }}>
+          <div style={{ marginTop: 24, fontSize: 30, color: "#DDE6FF", fontFamily: resolveFont(font) }}>
             - {author}
           </div>
         ) : null}

@@ -1,6 +1,7 @@
 import { interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
-export const PieChart = ({ title, segments, durationInFrames }) => {
+export const PieChart = ({ title, segments, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   const cx = 300;
@@ -13,7 +14,7 @@ export const PieChart = ({ title, segments, durationInFrames }) => {
   return (
     <div style={{
       position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "Arial, sans-serif", background: "linear-gradient(to bottom right, #111827, #1f2937)",
+      fontFamily: resolveFont(font), background: "linear-gradient(to bottom right, #111827, #1f2937)",
     }}>
       <div style={{ position: "relative", width: 600, height: 520, backgroundColor: "rgba(0,0,0,0.2)", borderRadius: 16, padding: 20 }}>
         {title ? (

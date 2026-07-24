@@ -2,6 +2,7 @@ import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadDancingScript } from "@remotion/google-fonts/DancingScript";
+import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
 
 // A small curated set covering the font roles that came up repeatedly in
 // the "viral edit" style research: a clean body/UI font, a bold display
@@ -11,18 +12,25 @@ import { loadFont as loadDancingScript } from "@remotion/google-fonts/DancingScr
 // Cool Vetica installed) silently fell back to a generic system sans-serif,
 // quietly breaking the "designed" look most of these styles depend on.
 //
+// "serif" (Lora) was added specifically so QuoteCard's original Georgia-serif,
+// literary-quote look survives being migrated onto the loaded-font system -
+// without it, QuoteCard would have had to fall back to "body" (Inter) and
+// lose the serif character that its design actually depends on.
+//
 // loadFont() registers the @font-face and returns the exact fontFamily
 // string Chromium needs to actually use the loaded font during render.
 const inter = loadInter();
 const poppins = loadPoppins("normal", { weights: ["400", "600", "700"] });
 const anton = loadAnton();
 const script = loadDancingScript();
+const lora = loadLora("normal", { weights: ["400", "600", "700"] });
 
 export const FONT_PRESETS = {
   body: inter.fontFamily,
   ui: poppins.fontFamily,
   display: anton.fontFamily,
   script: script.fontFamily,
+  serif: lora.fontFamily,
 };
 
 // Resolves a `font` prop that's either one of the curated preset names

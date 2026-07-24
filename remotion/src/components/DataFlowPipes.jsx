@@ -1,4 +1,5 @@
 import { interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
 const VBOX_W = 1280;
 const VBOX_H = 720;
@@ -36,7 +37,7 @@ function bezierLength(a, b) {
 // to hand-tune coordinates to avoid empty/unbalanced space.
 export const DataFlowPipes = ({
   nodes, edges, pipeColor = "#2a2a30", pulseColor = "#22d3ee",
-  pulseLength = 60, pulseDuration = 36, loopGap = 30, nodeColor = "#0a0a0a", textColor = "#fafafa",
+  pulseLength = 60, pulseDuration = 36, loopGap = 30, nodeColor = "#0a0a0a", textColor = "#fafafa", font = "ui",
 }) => {
   const frame = useCurrentFrame();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -98,7 +99,7 @@ export const DataFlowPipes = ({
               <rect x={node.x - 65} y={node.y - 26} width={130} height={52} rx={10}
                 fill={nodeColor} stroke="rgba(255,255,255,0.12)" strokeWidth={1 / scale} />
               <text x={node.x} y={node.y + 6} textAnchor="middle" fill={textColor}
-                fontSize={16} fontWeight={600} fontFamily="Arial, sans-serif">
+                fontSize={16} fontWeight={600} fontFamily={resolveFont(font)}>
                 {node.label ?? node.id}
               </text>
             </g>

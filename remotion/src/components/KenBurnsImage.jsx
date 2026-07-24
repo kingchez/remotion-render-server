@@ -1,8 +1,9 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
 import { normalizeAssetUrl } from "../assetUrl";
+import { resolveFont } from "../fonts";
 
 // Slow zoom on a static image + fade-in/out caption text
-export const KenBurnsImage = ({ imageUrl, text, durationInFrames }) => {
+export const KenBurnsImage = ({ imageUrl, text, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const scale = interpolate(frame, [0, durationInFrames], [1, 1.12], {
     extrapolateRight: "clamp",
@@ -23,7 +24,7 @@ export const KenBurnsImage = ({ imageUrl, text, durationInFrames }) => {
         <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
           <div style={{
             opacity: textOpacity, fontSize: 54, fontWeight: 700, color: "white",
-            textAlign: "center", maxWidth: "85%", fontFamily: "Arial, sans-serif",
+            textAlign: "center", maxWidth: "85%", fontFamily: resolveFont(font),
             textShadow: "0 2px 12px rgba(0,0,0,0.8)",
           }}>
             {text}

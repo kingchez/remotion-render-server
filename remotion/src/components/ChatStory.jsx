@@ -1,6 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
-export const ChatStory = ({ messages, durationInFrames }) => {
+export const ChatStory = ({ messages, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const perMsg = durationInFrames / messages.length;
 
@@ -22,7 +23,7 @@ export const ChatStory = ({ messages, durationInFrames }) => {
             background: isMe ? "#2E86FF" : "white",
             color: isMe ? "white" : "#111",
             padding: "16px 24px", borderRadius: 20, fontSize: 32,
-            fontFamily: "Arial, sans-serif", maxWidth: "70%", marginBottom: 16,
+            fontFamily: resolveFont(font), maxWidth: "70%", marginBottom: 16,
           }}>
             {msg.text}
           </div>

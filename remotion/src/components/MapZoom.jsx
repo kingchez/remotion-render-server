@@ -1,5 +1,6 @@
 import { AbsoluteFill, Img, interpolate, useCurrentFrame } from "remotion";
 import { normalizeAssetUrl } from "../assetUrl";
+import { resolveFont } from "../fonts";
 
 function PinIcon() {
   return (
@@ -10,7 +11,7 @@ function PinIcon() {
   );
 }
 
-export const MapZoom = ({ imageUrl, label, fromScale = 1, toScale = 1.3, durationInFrames }) => {
+export const MapZoom = ({ imageUrl, label, fromScale = 1, toScale = 1.3, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const scale = interpolate(frame, [0, durationInFrames], [fromScale, toScale], {
     extrapolateRight: "clamp",
@@ -25,7 +26,7 @@ export const MapZoom = ({ imageUrl, label, fromScale = 1, toScale = 1.3, duratio
         <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "flex-start", padding: 60 }}>
           <div style={{
             background: "rgba(0,0,0,0.75)", color: "white", padding: "14px 26px",
-            borderRadius: 12, fontSize: 36, fontWeight: 700, fontFamily: "Arial, sans-serif",
+            borderRadius: 12, fontSize: 36, fontWeight: 700, fontFamily: resolveFont(font),
             display: "flex", alignItems: "center",
           }}>
             <PinIcon /> {label}

@@ -1,4 +1,5 @@
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { resolveFont } from "../fonts";
 
 // words: [{ word, start, end }] - real WhisperX timestamps, in SECONDS,
 // relative to the start of this scene's own audio (not the whole video).
@@ -12,6 +13,7 @@ export const AnimatedCaptions = ({
   inactiveColor = "#FFFFFF",
   wordsPerLine = 5,
   position = "bottom", // "bottom" | "center" | "top"
+  font = "ui",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -52,7 +54,7 @@ export const AnimatedCaptions = ({
           const scale = isActive ? 1 + 0.15 * (1 - popProgress) + 0.0 : 1;
           return (
             <span key={i} style={{
-              fontSize, fontWeight: 800, fontFamily: "Arial, sans-serif",
+              fontSize, fontWeight: 800, fontFamily: resolveFont(font),
               color: isActive || hasPassed ? activeColor : inactiveColor,
               transform: `scale(${isActive ? 1.12 : 1})`,
               textShadow: "0 3px 10px rgba(0,0,0,0.7)",

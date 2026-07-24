@@ -1,8 +1,9 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
 // Renders a row of labeled circles connected by arrows, appearing one at a
 // time - good for "here's how the workflow flows" explainer diagrams.
-export const MotionGraphic = ({ items, durationInFrames }) => {
+export const MotionGraphic = ({ items, durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const perItem = durationInFrames / items.length;
 
@@ -21,7 +22,7 @@ export const MotionGraphic = ({ items, durationInFrames }) => {
                 width: 140, height: 140, borderRadius: "50%",
                 background: "#2E86FF", display: "flex", alignItems: "center",
                 justifyContent: "center", color: "white", fontSize: 26,
-                fontWeight: 700, fontFamily: "Arial, sans-serif", textAlign: "center", padding: 10,
+                fontWeight: 700, fontFamily: resolveFont(font), textAlign: "center", padding: 10,
               }}>
                 {item.label}
               </div>

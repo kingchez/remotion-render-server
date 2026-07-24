@@ -1,10 +1,11 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { resolveFont } from "../fonts";
 
 // series: [{ label: "USA", values: [20, 21, 23, 25, 26] }, ...]
 // years:  ["2018", "2019", "2020", "2021", "2022"]  <- must align with values[] length
 // Renders horizontal bars that smoothly grow and reorder as the timeline
 // moves through the years, with a big year counter in the corner.
-export const BarChartRace = ({ title, years, series, unit = "", durationInFrames }) => {
+export const BarChartRace = ({ title, years, series, unit = "", durationInFrames, font = "ui"}) => {
   const frame = useCurrentFrame();
   const numSegments = years.length - 1;
 
@@ -33,7 +34,7 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
   return (
     <AbsoluteFill style={{ backgroundColor: "#0F1115", padding: 80 }}>
       {title ? (
-        <div style={{ fontSize: 44, fontWeight: 800, color: "white", fontFamily: "Arial, sans-serif", marginBottom: 20 }}>
+        <div style={{ fontSize: 44, fontWeight: 800, color: "white", fontFamily: resolveFont(font), marginBottom: 20 }}>
           {title}
         </div>
       ) : null}
@@ -59,7 +60,7 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
             >
               <div style={{
                 width: 160, color: "white", fontSize: 26, fontWeight: 700,
-                fontFamily: "Arial, sans-serif", textAlign: "right", paddingRight: 16, flexShrink: 0,
+                fontFamily: resolveFont(font), textAlign: "right", paddingRight: 16, flexShrink: 0,
               }}>
                 {s.label}
               </div>
@@ -69,7 +70,7 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
                   borderRadius: 8, display: "flex", alignItems: "center",
                   justifyContent: "flex-end", paddingRight: 16,
                 }}>
-                  <span style={{ color: "white", fontSize: 24, fontWeight: 700, fontFamily: "Arial, sans-serif" }}>
+                  <span style={{ color: "white", fontSize: 24, fontWeight: 700, fontFamily: resolveFont(font) }}>
                     {s.currentValue.toFixed(1)}{unit}
                   </span>
                 </div>
@@ -81,7 +82,7 @@ export const BarChartRace = ({ title, years, series, unit = "", durationInFrames
 
       <div style={{
         position: "absolute", bottom: 60, right: 80, fontSize: 90, fontWeight: 800,
-        color: "rgba(255,255,255,0.15)", fontFamily: "Arial, sans-serif",
+        color: "rgba(255,255,255,0.15)", fontFamily: resolveFont(font),
       }}>
         {currentYearLabel}
       </div>
