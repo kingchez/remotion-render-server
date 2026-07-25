@@ -1,0 +1,173 @@
+{
+  "description": "Background music library for Viralnotely video pipeline. Pick a track by category/mood/bestFor fit for the scene.",
+  "tracks": [
+    {
+      "filename": "motivation-sport-rock-trailer.mp3",
+      "category": "motivational-rock",
+      "mood": "high-energy, driving, triumphant",
+      "bestFor": "sports highlights, achievement/before-after reveals, trailer-style hooks"
+    },
+    {
+      "filename": "corporate-uplifting-business.mp3",
+      "category": "corporate",
+      "mood": "uplifting, polished, optimistic",
+      "bestFor": "business explainers, product showcases, professional intros"
+    },
+    {
+      "filename": "motivation-anthem-01.mp3",
+      "category": "motivational",
+      "mood": "driving, anthemic",
+      "bestFor": "general motivational montages, product launch hype"
+    },
+    {
+      "filename": "motivation-anthem-02.mp3",
+      "category": "motivational",
+      "mood": "driving, building energy",
+      "bestFor": "general motivational montages, tutorial hooks needing energy"
+    },
+    {
+      "filename": "ukulele-light-01.mp3",
+      "category": "ukulele",
+      "mood": "light, breezy, cheerful",
+      "bestFor": "casual how-to content, travel/lifestyle b-roll"
+    },
+    {
+      "filename": "ukulele-happy-01.mp3",
+      "category": "ukulele",
+      "mood": "happy, bouncy",
+      "bestFor": "playful tutorials, product unboxings, kid-friendly content"
+    },
+    {
+      "filename": "ripple-ambient.mp3",
+      "category": "ambient",
+      "mood": "rippling, calm, generative-feeling",
+      "bestFor": "data-viz backgrounds, abstract/tech explainer beds"
+    },
+    {
+      "filename": "travel-deep-house-skyline.mp3",
+      "category": "deep-house",
+      "mood": "chill groove, aspirational",
+      "bestFor": "travel vlogs, lifestyle b-roll, skyline/city product shots"
+    },
+    {
+      "filename": "corporate-inspiring-01.mp3",
+      "category": "corporate",
+      "mood": "inspiring, warm",
+      "bestFor": "business explainers, stakeholder/brand story videos"
+    },
+    {
+      "filename": "corporate-motivation-01.mp3",
+      "category": "corporate",
+      "mood": "motivating, confident",
+      "bestFor": "product showcases, corporate promos"
+    },
+    {
+      "filename": "neon-urban-deep-vibe.mp3",
+      "category": "urban-electronic",
+      "mood": "moody, cool, neon-lit",
+      "bestFor": "tech/product showcases, night/city footage, futuristic explainers"
+    },
+    {
+      "filename": "ukulele-upbeat-golden-dayz.mp3",
+      "category": "ukulele",
+      "mood": "upbeat, nostalgic-happy",
+      "bestFor": "lifestyle content, summer/travel vibes, casual tutorials"
+    },
+    {
+      "filename": "lofi-better-days.mp3",
+      "category": "lofi",
+      "mood": "relaxed, nostalgic, warm",
+      "bestFor": "tutorials, study/relax-themed content, casual explainers"
+    },
+    {
+      "filename": "documentary-neutral-01.mp3",
+      "category": "documentary",
+      "mood": "neutral, informative, steady",
+      "bestFor": "news pieces, factual/data-driven explainers"
+    },
+    {
+      "filename": "cinematic-documentary-01.mp3",
+      "category": "documentary-cinematic",
+      "mood": "reflective, cinematic weight",
+      "bestFor": "news features, serious explainer topics, brand storytelling"
+    },
+    {
+      "filename": "cipher-kings-short-sting.mp3",
+      "category": "sting-transition",
+      "mood": "short dramatic accent",
+      "bestFor": "intro/outro stings, short transitions between segments"
+    },
+    {
+      "filename": "ukulele-light-02.mp3",
+      "category": "ukulele",
+      "mood": "light, relaxed",
+      "bestFor": "casual how-to content, travel/lifestyle b-roll"
+    },
+    {
+      "filename": "bunny-in-the-grass.mp3",
+      "category": "whimsical-acoustic",
+      "mood": "playful, cute, light",
+      "bestFor": "kids/lifestyle content, cute product showcases"
+    },
+    {
+      "filename": "urban-chill-01.mp3",
+      "category": "urban-chill",
+      "mood": "relaxed groove, laid-back",
+      "bestFor": "casual tutorials, lifestyle b-roll, everyday explainers"
+    },
+    {
+      "filename": "better-days-01.mp3",
+      "category": "uplifting-pop",
+      "mood": "hopeful, warm",
+      "bestFor": "feel-good tutorials, positive brand stories"
+    },
+    {
+      "filename": "better-days-02.mp3",
+      "category": "uplifting-pop",
+      "mood": "hopeful, gentle build",
+      "bestFor": "feel-good tutorials, positive brand stories (alt version)"
+    },
+    {
+      "filename": "minimal-piano-01.mp3",
+      "category": "minimal-piano",
+      "mood": "reflective, calm, sparse",
+      "bestFor": "emotional storytelling, slow explainer segments, data-viz reveals"
+    },
+    {
+      "filename": "serene-birds-eye-view.mp3",
+      "category": "ambient-contemplative",
+      "mood": "calm, expansive, lush",
+      "bestFor": "intros, calm explainer backgrounds, nature/travel footage"
+    },
+    {
+      "filename": "documentary-neutral-02.mp3",
+      "category": "documentary",
+      "mood": "neutral, steady, informative",
+      "bestFor": "news pieces, factual/data-driven explainers (alt version)"
+    },
+    {
+      "filename": "ambient-technology.mp3",
+      "category": "ambient-tech",
+      "mood": "subtle, modern, unobtrusive",
+      "bestFor": "tech explainers, product demos, tutorials needing a quiet bed under voiceover"
+    },
+    {
+      "filename": "instrumental-look-within.mp3",
+      "category": "reflective-instrumental",
+      "mood": "introspective, gentle",
+      "bestFor": "reflective segments, slow reveals, emotional beats"
+    },
+    {
+      "filename": "running-on-grass.mp3",
+      "category": "uplifting-acoustic",
+      "mood": "light, energetic-but-calm",
+      "bestFor": "lifestyle content, outdoor/nature b-roll"
+    },
+    {
+      "filename": "calm-wilderness-mindfulness.mp3",
+      "category": "ambient-meditation",
+      "mood": "very calm, meditative",
+      "bestFor": "mindfulness/wellness content, slow intros, relaxed study-style tutorials"
+    }
+  ]
+}
