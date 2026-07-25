@@ -1,6 +1,7 @@
 import { Icon } from "./components/Icon";
 import { Text } from "./components/Text";
 import { Image } from "./components/Image";
+import { Video } from "./components/Video";
 import { Shape } from "./components/Shape";
 import { AnimatedCursor } from "./components/AnimatedCursor";
 
@@ -12,6 +13,7 @@ const PRIMITIVES = {
   icon: Icon,
   text: Text,
   image: Image,
+  video: Video,
   shape: Shape,
   cursor: AnimatedCursor,
 };
