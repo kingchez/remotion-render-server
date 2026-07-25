@@ -168,6 +168,12 @@
       "category": "ambient-meditation",
       "mood": "very calm, meditative",
       "bestFor": "mindfulness/wellness content, slow intros, relaxed study-style tutorials"
+    },
+    {
+      "filename": "psychedelic-floating-trip-hop.mp3",
+      "category": "trip-hop",
+      "mood": "dreamy, floating, hypnotic",
+      "bestFor": "abstract/artistic segments, data-viz transitions, trippy visual reveals"
     }
   ]
 }
