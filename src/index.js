@@ -140,13 +140,12 @@ app.post("/renders", async (req, res) => {
 // attempts, 2s/5s/15s backoff) so a momentary n8n blip doesn't silently
 // drop the result. GET /renders/:id remains the fallback if all 4 fail.
 //
-// Memory hygiene: the in-memory job record is deleted the moment it's no
-// longer needed - either right here on a successful webhook delivery, or
-// in GET /renders/:id below on a successful manual pull of a terminal job.
-// Same "consumed once" rule as chatterbox-tts/whisperx's disk-backed job
-// stores, just applied to this in-memory Map instead of a file, since an
-// unbounded Map on a memory-constrained VPS is exactly as real a risk as
-// unbounded disk usage.
+// Delivery (webhook success, or a manual GET /renders/:id/output pull) no
+// longer deletes anything by itself. The in-memory job record and the
+// rendered file on disk both stay in place - fetchable any number of times
+// - until the caller explicitly calls POST /renders/:id/ack. Only /ack
+// deletes. Same contract as chatterbox-tts/whisperx's job stores, just
+// applied to this in-memory Map + disk file instead of SQLite rows.
 const CALLBACK_BACKOFF_MS = [2000, 5000, 15000];
 
 function sleep(ms) {
@@ -163,8 +162,7 @@ async function fireCallback(callbackUrl, payload) {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        console.log(`Callback to ${callbackUrl} delivered (job_id=${payload.job_id}, status=${payload.status}) on attempt ${attempt}. Clearing job record.`);
-        jobs.delete(payload.job_id);
+        console.log(`Callback to ${callbackUrl} delivered (job_id=${payload.job_id}, status=${payload.status}) on attempt ${attempt}. Record kept until POST /renders/${payload.job_id}/ack is called.`);
         return;
       }
       console.warn(`Callback to ${callbackUrl} returned HTTP ${res.status} on attempt ${attempt}.`);
@@ -183,24 +181,24 @@ app.get("/renders/:id", (req, res) => {
   const body = { jobId: req.params.id, status: job.status, createdAt: job.createdAt };
   if (job.status === "done") {
     // Just the fetch URL here, not the file itself - a status check must
-    // stay cheap and repeatable. GET /renders/:id/output below is the only
-    // place that actually consumes (and cleans up) the render.
+    // stay cheap and repeatable. GET /renders/:id/output below is the
+    // repeatable pull path; POST /renders/:id/ack is the only thing that
+    // actually consumes (and cleans up) the render.
     body.output_url = `${PUBLIC_BASE_URL}/renders/${req.params.id}/output`;
   }
   if (job.status === "error") {
     body.error = job.error;
-    // Nothing on disk to preserve for a failed job, so safe to clear here.
-    jobs.delete(req.params.id);
+    // Record is kept (not cleared here) until POST /renders/:id/ack, same
+    // as a "done" job - so the error can still be inspected repeatedly.
   }
   res.json(body);
 });
 
-// The actual consumption point. The rendered file stays on disk and the job
-// record stays in memory until this succeeds - a webhook that never arrives,
-// or n8n being down for an hour, can never lose a finished render. This
-// mirrors the same "persists until pulled, then deleted" contract already
-// used by chatterbox-tts/whisperx's manual-pull endpoints (see the pipeline
-// manual, safety-net section) - not a new pattern, just applied here too.
+// Repeatable manual pull. The rendered file stays on disk and the job
+// record stays in memory regardless of how many times this is called - a
+// webhook that never arrives, or n8n being down for an hour, can never lose
+// a finished render, and re-fetching it doesn't consume it either. Only
+// POST /renders/:id/ack (below) deletes anything.
 app.get("/renders/:id/output", (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: "job not found" });
@@ -208,20 +206,33 @@ app.get("/renders/:id/output", (req, res) => {
     return res.status(409).json({ error: `job is not ready (status: ${job.status})` });
   }
   if (!fs.existsSync(job.outputPath)) {
-    return res.status(410).json({ error: "output no longer available (already delivered and cleaned up, or pruned)" });
+    return res.status(410).json({ error: "output no longer available (already acknowledged and cleaned up, or pruned)" });
   }
 
   res.sendFile(job.outputPath, (err) => {
     if (err) {
-      // Send failed partway (e.g. connection dropped) - leave everything in
-      // place so a retry can still succeed. Do NOT clean up here.
       console.error(`Failed to send output for job ${req.params.id}:`, err.message);
       return;
     }
-    jobs.delete(req.params.id);
-    cleanup(req.params.id);
-    console.log(`Output for job ${req.params.id} delivered and cleaned up.`);
+    console.log(`Output for job ${req.params.id} pulled via HTTP - nothing deleted; call POST /renders/${req.params.id}/ack once received.`);
   });
+});
+
+// The ONLY thing that deletes a finished job's in-memory record and its
+// on-disk output directory. Call this once the result - from the webhook
+// or a GET /renders/:id/output pull, possibly several of them - has been
+// durably received. 409 if the job hasn't reached a terminal state yet.
+app.post("/renders/:id/ack", (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: "job not found" });
+  if (job.status !== "done" && job.status !== "error") {
+    return res.status(409).json({ error: `job is still ${job.status}; nothing to acknowledge yet` });
+  }
+
+  jobs.delete(req.params.id);
+  cleanup(req.params.id);
+  console.log(`Job ${req.params.id} acknowledged - record and any on-disk output cleared.`);
+  res.json({ jobId: req.params.id, acknowledged: true });
 });
 
 // Admin cleanup, matching the chatterbox-tts / whisperx prune_jobs
