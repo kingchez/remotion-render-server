@@ -17,6 +17,24 @@ const PORT = process.env.PORT || 3000;
 // a real URL back to this server to actually fetch the rendered file.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://render.viralnotely.com";
 
+// Every downloaded Drive asset (voiceover audio, media_assets images/video)
+// lands here before render, keyed by jobId. @remotion/renderer's own asset
+// pre-download step (download-and-map-assets-to-file.js) only accepts
+// http:// / https:// sources - file:// is explicitly rejected, since that
+// step is built to fetch remote media, not read local paths directly. So
+// this directory is also served over plain local HTTP (see the
+// express.static mount below) and every resolved asset URL points at
+// that local server instead of a file:// path. Remotion's headless
+// Chromium runs in this same container/process, so 127.0.0.1 is always
+// reachable regardless of PUBLIC_BASE_URL/deployment networking.
+const RENDERS_ROOT = path.join(os.tmpdir(), "renders");
+app.use("/tmp-assets", express.static(RENDERS_ROOT));
+
+function localAssetUrl(absolutePath) {
+  const relative = path.relative(RENDERS_ROOT, absolutePath).split(path.sep).join("/");
+  return `http://127.0.0.1:${PORT}/tmp-assets/${relative}`;
+}
+
 // In-memory job store, backed by disk for anything that survives a crash/
 // redeploy - see rehydrateJobsFromDisk() below, called once at startup.
 // A job's real "createdAt" for done jobs is the output file's own mtime,
@@ -25,7 +43,7 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://render.viralnote
 const jobs = new Map();
 
 function tempDirFor(jobId) {
-  return path.join(os.tmpdir(), "renders", jobId);
+  return path.join(RENDERS_ROOT, jobId);
 }
 
 function cleanup(jobId) {
@@ -263,10 +281,12 @@ app.delete("/admin/prune_jobs", (req, res) => {
 });
 
 // Maps a Drive file's real mimeType to the correct local extension. These
-// become file:// URLs handed straight to Chromium, which partly relies on
-// extension for MIME sniffing - so a mismatched guess (e.g. a transparent
-// PNG saved as .jpg) can misrender. Falls back to the old key-name guess
-// only if metadata lookup fails or the mimeType isn't in this table.
+// get served over the local HTTP static route (see localAssetUrl above)
+// and handed to Chromium as regular URLs - the extension matters for
+// correct Content-Type-driven MIME sniffing, not for URL scheme (that
+// part is handled by localAssetUrl always producing http://, never
+// file://). Falls back to the old key-name guess only if metadata lookup
+// fails or the mimeType isn't in this table.
 const MIME_TO_EXT = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -319,7 +339,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
 
       const localPath = path.join(dir, `scene-${sceneIndex}-${keyPrefix}${key}${ext}`);
       await downloadFile(fileId, localPath);
-      resolved[targetKey] = `file://${localPath}`;
+      resolved[targetKey] = localAssetUrl(localPath);
       delete resolved[key];
     }
 
@@ -393,7 +413,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
   if (audioDriveFileId) {
     const audioPath = path.join(dir, "audio.mp3");
     await downloadFile(audioDriveFileId, audioPath);
-    audioUrl = `file://${audioPath}`;
+    audioUrl = localAssetUrl(audioPath);
   }
 
   const outputPath = path.join(dir, "output.mp4");
