@@ -1,79 +1,91 @@
-const { google } = require("googleapis");
 const fs = require("fs");
-const path = require("path");
+const { Readable } = require("stream");
+const { finished } = require("stream/promises");
 
-function getOAuthClient() {
-  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+// This service holds NO Google credentials of any kind — same as
+// chatterbox-tts and whisperx, neither of which talk to Google Drive
+// directly either. All Drive I/O for those two happens on the n8n side,
+// via n8n's own credentialed Google Drive node, after pulling the
+// finished job's raw output from each service's own GET/ack endpoints.
+//
+// This file previously used a google.auth.OAuth2 client (client id +
+// secret + refresh token, all from env vars) to download input assets
+// (mainly per-scene voiceover audio). That's what threw `invalid_grant`
+// — an expired/revoked refresh token — and it was never actually
+// required: every file this server is ever asked to download by fileId
+// (voiceover audio from Chatterbox, any media_assets image/video) is
+// already shared "anyone with the link can view" by the stage that
+// uploaded it (see pipeline-operating-manual.md §2 Stage 3 — Chatterbox's
+// callback shares each segment "anyone/reader" immediately after
+// upload). A publicly-shared file needs no auth to download — just a
+// plain HTTPS GET against Drive's public export endpoint. Removing the
+// OAuth client here also drops the ~207MB `googleapis` dependency
+// entirely (previously flagged as a known, not-yet-done optimization in
+// style-library.md's Known Gaps section — this closes it for free as a
+// side effect of the actual bug fix, not a separate project).
 
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REFRESH_TOKEN env vars are all required"
+const DRIVE_DOWNLOAD_BASE = "https://drive.google.com/uc?export=download";
+
+function driveDownloadUrl(fileId) {
+  return `${DRIVE_DOWNLOAD_BASE}&id=${encodeURIComponent(fileId)}`;
+}
+
+// For files above a certain size, Drive's public endpoint serves an HTML
+// "can't scan this file for viruses" interstitial instead of the raw
+// bytes, embedding a one-time confirm token you have to replay. Detect
+// that case explicitly rather than silently writing an HTML page to disk
+// as if it were the real audio/video file.
+function extractConfirmToken(html) {
+  const match = html.match(/confirm=([0-9A-Za-z_-]+)/);
+  return match ? match[1] : null;
+}
+
+async function fetchDriveFile(fileId) {
+  let res = await fetch(driveDownloadUrl(fileId));
+  const contentType = res.headers.get("content-type") || "";
+
+  if (contentType.includes("text/html")) {
+    const html = await res.text();
+    const token = extractConfirmToken(html);
+    if (!token) {
+      throw new Error(
+        `Drive file ${fileId} returned an HTML page instead of file bytes, and no ` +
+          `confirm token was found in it. Most likely cause: the file isn't actually ` +
+          `shared "Anyone with the link" (still restricted), or the fileId is wrong.`
+      );
+    }
+    res = await fetch(
+      `${DRIVE_DOWNLOAD_BASE}&id=${encodeURIComponent(fileId)}&confirm=${token}`
     );
   }
 
-  const oAuth2Client = new google.auth.OAuth2(clientId, clientSecret);
-  oAuth2Client.setCredentials({ refresh_token: refreshToken });
-  return oAuth2Client;
+  if (!res.ok) {
+    throw new Error(`Drive download for ${fileId} failed: HTTP ${res.status}`);
+  }
+
+  return res;
 }
 
-async function driveClient() {
-  const auth = getOAuthClient();
-  return google.drive({ version: "v3", auth });
-}
-
-// Downloads a Drive file by its fileId into destPath on local disk
+// Downloads a Drive file by its fileId into destPath on local disk.
 async function downloadFile(fileId, destPath) {
-  const drive = await driveClient();
+  const res = await fetchDriveFile(fileId);
   const dest = fs.createWriteStream(destPath);
-
-  const res = await drive.files.get(
-    { fileId, alt: "media" },
-    { responseType: "stream" }
-  );
-
-  return new Promise((resolve, reject) => {
-    res.data
-      .on("end", () => resolve(destPath))
-      .on("error", reject)
-      .pipe(dest);
-  });
+  await finished(Readable.fromWeb(res.body).pipe(dest));
+  return destPath;
 }
 
-// Fetches a Drive file's real mimeType/name without downloading its content.
-// Used so callers can pick a correct local file extension instead of
-// guessing one from the prop name (a Drive image saved as .png/.webp was
-// previously always written to disk as .jpg, which can break MIME
-// sniffing since these become file:// URLs handed straight to Chromium).
+// Fetches just the real Content-Type for a Drive file, without keeping
+// the downloaded body around — so callers (index.js's resolveAssets) can
+// pick a correct local file extension instead of guessing one from the
+// prop name. `name` is no longer available without the authenticated
+// Drive API and isn't currently used by any caller — kept as null for
+// backward-compatible shape.
 async function getFileMetadata(fileId) {
-  const drive = await driveClient();
-  const res = await drive.files.get({ fileId, fields: "mimeType, name" });
-  return { mimeType: res.data.mimeType, name: res.data.name };
+  const res = await fetchDriveFile(fileId);
+  if (res.body) {
+    await res.body.cancel();
+  }
+  return { mimeType: res.headers.get("content-type") || null, name: null };
 }
 
-// Uploads a local file to a specific Drive folder, returns the new file's id + link
-async function uploadFile(localPath, folderId, mimeType) {
-  const drive = await driveClient();
-  const fileName = path.basename(localPath);
-
-  const res = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: folderId ? [folderId] : undefined,
-    },
-    media: {
-      mimeType,
-      body: fs.createReadStream(localPath),
-    },
-    fields: "id, webViewLink, webContentLink",
-  });
-
-  return {
-    fileId: res.data.id,
-    webViewLink: res.data.webViewLink,
-    webContentLink: res.data.webContentLink,
-  };
-}
-
-module.exports = { downloadFile, uploadFile, getFileMetadata };
+module.exports = { downloadFile, getFileMetadata };
