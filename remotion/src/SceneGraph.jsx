@@ -4,6 +4,7 @@ import { Image } from "./components/Image";
 import { Video } from "./components/Video";
 import { Shape } from "./components/Shape";
 import { AnimatedCursor } from "./components/AnimatedCursor";
+import { MixedText } from "./components/MixedText";
 
 // The primitive library - generic building blocks, usable inside any
 // scene-graph object list. Small and deliberately so; new visual ideas
@@ -16,6 +17,7 @@ const PRIMITIVES = {
   video: Video,
   shape: Shape,
   cursor: AnimatedCursor,
+  mixedText: MixedText,
 };
 
 // A scene built from `objects: [{type, ...props}]` instead of a single

@@ -57,6 +57,8 @@ export const Shape = ({
   // shadow's pixel reach.
   longShadow,
   blendMode, // CSS mix-blend-mode, e.g. "multiply" | "difference" | "lighter"
+  // New: degrees - static rotation of the shape, same convention as Image.rotate.
+  rotate = 0,
   opacity: baseOpacity = 1,
   animations = [{ type: "fadeIn", start: 0, duration: 15 }],
 }) => {
@@ -107,7 +109,7 @@ export const Shape = ({
         backdropFilter: backdropBlur ? `blur(${backdropBlur}px)` : "none",
         mixBlendMode: blendMode || "normal",
         filter: filters.length ? filters.join(" ") : "none",
-        transform: `translate(-50%, -50%) ${style.transform}`,
+        transform: `translate(-50%, -50%) rotate(${rotate}deg) ${style.transform}`,
         opacity: baseOpacity * style.opacity,
         boxShadow: boxShadows.length ? boxShadows.join(", ") : "none",
       }}

@@ -18,6 +18,17 @@ export const Image = ({
   chromaKey,
   // New: CSS mix-blend-mode, e.g. "multiply" | "difference" | "lighter".
   blendMode,
+  // New: px - box-blur on the image itself. Same pattern as Shape.blur.
+  // Common use: a defocused background photo behind sharp foreground text
+  // (the "focus-pull" look) - pre-blurring a duplicate asset isn't needed
+  // anymore, just set blur on the same Image object holding the photo.
+  blur = 0,
+  // New: degrees - static rotation of the whole image, e.g. for a
+  // deliberately tilted screen-recording/photo-card look. Not animated
+  // (no keyframing) - a fixed look, same as a physical print laid at an
+  // angle. Combine with a slight zoom on the parent scene if rotation
+  // reveals corners outside the frame.
+  rotate = 0,
   animations = [{ type: "fadeIn", start: 0, duration: 15 }],
 }) => {
   const frame = useCurrentFrame();
@@ -36,13 +47,14 @@ export const Image = ({
         position: "absolute",
         left: `${posX}%`,
         top: `${posY}%`,
-        transform: `translate(-50%, -50%) ${style.transform}`,
+        transform: `translate(-50%, -50%) rotate(${rotate}deg) ${style.transform}`,
         opacity: style.opacity,
         width,
         height,
         borderRadius,
         overflow: "hidden",
         mixBlendMode: blendMode || "normal",
+        filter: blur > 0 ? `blur(${blur}px)` : "none",
         boxShadow: highlightActive ? `0 0 0 6px ${highlightColor}` : "none",
       }}
     >
