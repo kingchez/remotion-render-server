@@ -18,6 +18,12 @@ export const Screencast = ({
   cursorPoints, // [{x, y, hold, click}] - overlay an animated cursor path
   durationInFrames,
   font = "ui",
+  // New: degrees - static tilt on the whole recording (e.g. a deliberately
+  // skewed screen-capture card for social/kinetic-style energy). Not
+  // animated. A rotated frame will show its corners against whatever scene
+  // background sits behind it, so pair with a slightly-larger deviceFrame
+  // or a full-bleed background color/shape behind this scene.
+  rotate = 0,
 }) => {
   const frame = useCurrentFrame();
   const highlightEnd = highlightToFrame ?? durationInFrames;
@@ -51,7 +57,7 @@ export const Screencast = ({
   );
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "black" }}>
+    <AbsoluteFill style={{ backgroundColor: "black", transform: rotate ? `rotate(${rotate}deg) scale(1.15)` : "none" }}>
       {deviceFrame ? (
         <DeviceFrame url={deviceFrameUrl}>{content}</DeviceFrame>
       ) : (

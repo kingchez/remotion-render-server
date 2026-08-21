@@ -28,6 +28,8 @@ import { Icon } from "./components/Icon";
 import { TiltShiftOverlay } from "./components/TiltShiftOverlay";
 import { FilmLook } from "./components/FilmLook";
 import { HalftoneOverlay } from "./components/HalftoneOverlay";
+import { MediaGrid } from "./components/MediaGrid";
+import { MixedText } from "./components/MixedText";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -63,6 +65,8 @@ const STYLE_LIBRARY = {
   DataFlowPipes,
   AnimatedCaptions,
   Icon,
+  MediaGrid,
+  MixedText,
 };
 
 export const calculateTotalFrames = (scenes) => {

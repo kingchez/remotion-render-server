@@ -346,10 +346,26 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     if (resolved.icon) {
       resolved.iconSvg = resolveIconSvg(resolved.icon);
     }
+    // Generalized: recurse into each `items[]` entry through the same
+    // resolver used for top-level props, so any *DriveFileId or icon
+    // reference nested inside an item (e.g. MediaGrid's per-cell
+    // imageDriveFileId) actually gets downloaded/resolved - previously
+    // only `item.icon` was special-cased here, so a *DriveFileId key
+    // inside an items[] entry silently never resolved. Guarded to plain
+    // objects only: RankedList's `items` are plain strings, and spreading
+    // a string into resolveAssets's `{...obj}` would corrupt it into a
+    // character-indexed object, so primitives pass through untouched.
     if (Array.isArray(resolved.items)) {
-      resolved.items = resolved.items.map((item) =>
-        item?.icon ? { ...item, iconSvg: resolveIconSvg(item.icon) } : item
-      );
+      const resolvedItems = [];
+      for (let idx = 0; idx < resolved.items.length; idx++) {
+        const item = resolved.items[idx];
+        resolvedItems.push(
+          item && typeof item === "object"
+            ? await resolveAssets(item, sceneIndex, `${keyPrefix}items${idx}-`)
+            : item
+        );
+      }
+      resolved.items = resolvedItems;
     }
 
     // Preset objects (scene-graph type "preset") carry their actual
