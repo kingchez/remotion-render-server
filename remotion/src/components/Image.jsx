@@ -1,7 +1,7 @@
 import { computeMotion } from "../motion";
 import { useChromaKeyedImage } from "../chromaKey";
 import { normalizeAssetUrl } from "../assetUrl";
-import { Img, useCurrentFrame, useVideoConfig } from "remotion";
+import { Img, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 
 export const Image = ({
   imageUrl,
@@ -18,10 +18,16 @@ export const Image = ({
   chromaKey,
   // New: CSS mix-blend-mode, e.g. "multiply" | "difference" | "lighter".
   blendMode,
-  // New: px - box-blur on the image itself. Same pattern as Shape.blur.
-  // Common use: a defocused background photo behind sharp foreground text
-  // (the "focus-pull" look) - pre-blurring a duplicate asset isn't needed
-  // anymore, just set blur on the same Image object holding the photo.
+  // New: px - box-blur on the image itself. Two shapes:
+  // - a plain number (e.g. blur: 8) - static blur, unchanging for the
+  //   whole scene. Common use: a defocused background photo behind sharp
+  //   foreground text (the "focus-pull" look).
+  // - { from, to, start, duration, easing? } - ANIMATED blur, interpolated
+  //   over time same as any other keyframed value. Common use: the
+  //   "diagrammatic sequence" look - a step/item sits blurred (e.g.
+  //   from: 12) until the voiceover actually reaches it, then sharpens
+  //   (to: 0) right on cue. Pair `start` with that item's real word-timing
+  //   timestamp so the unblur lands exactly when it's mentioned.
   blur = 0,
   // New: degrees - static rotation of the whole image, e.g. for a
   // deliberately tilted screen-recording/photo-card look. Not animated
@@ -39,6 +45,14 @@ export const Image = ({
   const posX = positionOverride?.x ?? x;
   const posY = positionOverride?.y ?? y;
 
+  const resolvedBlur =
+    blur && typeof blur === "object"
+      ? interpolate(frame, [blur.start ?? 0, (blur.start ?? 0) + (blur.duration ?? 15)], [blur.from ?? 0, blur.to ?? 0], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        })
+      : blur;
+
   if (!resolvedSrc) return null;
 
   return (
@@ -54,7 +68,7 @@ export const Image = ({
         borderRadius,
         overflow: "hidden",
         mixBlendMode: blendMode || "normal",
-        filter: blur > 0 ? `blur(${blur}px)` : "none",
+        filter: resolvedBlur > 0 ? `blur(${resolvedBlur}px)` : "none",
         boxShadow: highlightActive ? `0 0 0 6px ${highlightColor}` : "none",
       }}
     >
