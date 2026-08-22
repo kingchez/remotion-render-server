@@ -30,6 +30,9 @@ import { FilmLook } from "./components/FilmLook";
 import { HalftoneOverlay } from "./components/HalftoneOverlay";
 import { MediaGrid } from "./components/MediaGrid";
 import { MixedText } from "./components/MixedText";
+import { RatioDots } from "./components/RatioDots";
+import { NodeCullDiagram } from "./components/NodeCullDiagram";
+import { NotificationToast } from "./components/NotificationToast";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -67,6 +70,9 @@ const STYLE_LIBRARY = {
   Icon,
   MediaGrid,
   MixedText,
+  RatioDots,
+  NodeCullDiagram,
+  NotificationToast,
 };
 
 export const calculateTotalFrames = (scenes) => {
