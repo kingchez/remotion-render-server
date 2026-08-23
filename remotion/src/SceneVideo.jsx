@@ -41,6 +41,14 @@ import { StatPunch } from "./components/StatPunch";
 import { CornerStat } from "./components/CornerStat";
 import { AnnotatedScreenshot } from "./components/AnnotatedScreenshot";
 import { ComparisonGrid } from "./components/ComparisonGrid";
+import { HookTitle } from "./components/HookTitle";
+import { SplitReveal } from "./components/SplitReveal";
+import { CinematicTitle } from "./components/CinematicTitle";
+import { LayerStack } from "./components/LayerStack";
+import { BarOverlay } from "./components/BarOverlay";
+import { TickerFeed } from "./components/TickerFeed";
+import { SidePanel } from "./components/SidePanel";
+import { AvatarBurst } from "./components/AvatarBurst";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -89,6 +97,14 @@ const STYLE_LIBRARY = {
   CornerStat,
   AnnotatedScreenshot,
   ComparisonGrid,
+  HookTitle,
+  SplitReveal,
+  CinematicTitle,
+  LayerStack,
+  BarOverlay,
+  TickerFeed,
+  SidePanel,
+  AvatarBurst,
 };
 
 export const calculateTotalFrames = (scenes) => {
