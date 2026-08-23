@@ -12,6 +12,7 @@ import { Easing, interpolate, spring } from "remotion";
 //   { type: "shake", start, end, intensity },
 //   { type: "highlight", start, end, color },
 //   { type: "moveTo", from: {x,y}, to: {x,y}, start, duration, easing },
+//   { type: "springMove", from: {x,y}, to: {x,y}, start, duration, damping?, stiffness?, mass? },
 //   { type: "springIn", start, duration, damping?, stiffness?, mass?, fromScale? },
 //   { type: "livingHold", start, rampDuration?, maxScale?, driftY? },
 //   { type: "dissolveOut", start, duration, easing, scaleAmount?, riseAmount?, blurAmount? },
@@ -45,6 +46,7 @@ export function computeMotion(animations = [], frame, fps = 30) {
   let opacity = 1;
   let blurPx = 0;
   let positionOverride = null;
+  let movePos = null; // carries the resolved position across moveTo/springMove entries so overlapping/sequential moves hand off smoothly (see moveTo/springMove below)
   let highlightActive = false;
   let highlightColor = "#FFD400";
 
@@ -132,14 +134,46 @@ export function computeMotion(animations = [], frame, fps = 30) {
         break;
       }
 
+      // FIXED (was the documented "overlapping moveTo doesn't blend" gap):
+      // when a later moveTo/springMove's window overlaps an earlier one's,
+      // instead of jumping to this entry's own declared `from`, continue
+      // from wherever the position actually is at THIS frame (`movePos`,
+      // carried across move-type entries in this same pass) - the classic
+      // "start the next movement before the current one finishes" technique
+      // now hands off smoothly instead of snapping. Also applies to plain
+      // back-to-back (non-overlapping) moves for extra robustness if an
+      // author's declared `from` doesn't exactly match the previous `to`.
       case "moveTo": {
+        if (frame < start) break;
+        const effectiveFrom = movePos ?? anim.from;
         const progress = interpolate(frame, [start, start + duration], [0, 1], {
           extrapolateLeft: "clamp", extrapolateRight: "clamp", easing,
         });
-        positionOverride = {
-          x: anim.from.x + (anim.to.x - anim.from.x) * progress,
-          y: anim.from.y + (anim.to.y - anim.from.y) * progress,
+        movePos = {
+          x: effectiveFrom.x + (anim.to.x - effectiveFrom.x) * progress,
+          y: effectiveFrom.y + (anim.to.y - effectiveFrom.y) * progress,
         };
+        positionOverride = movePos;
+        break;
+      }
+
+      // New: spring-based move - same overlap-continuity handling as
+      // moveTo above, but eased via real spring physics instead of a
+      // curve, so a move that gets interrupted by the next one carries
+      // natural deceleration into the handoff rather than a flat ease.
+      case "springMove": {
+        if (frame < start) break;
+        const effectiveFrom = movePos ?? anim.from;
+        const s = spring({
+          frame: localFrame, fps,
+          durationInFrames: duration,
+          config: { damping: anim.damping ?? 16, stiffness: anim.stiffness ?? 140, mass: anim.mass ?? 0.7 },
+        });
+        movePos = {
+          x: effectiveFrom.x + (anim.to.x - effectiveFrom.x) * s,
+          y: effectiveFrom.y + (anim.to.y - effectiveFrom.y) * s,
+        };
+        positionOverride = movePos;
         break;
       }
 
