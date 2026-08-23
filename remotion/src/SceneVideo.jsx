@@ -35,6 +35,12 @@ import { NodeCullDiagram } from "./components/NodeCullDiagram";
 import { NotificationToast } from "./components/NotificationToast";
 import { NetworkDiagram } from "./components/NetworkDiagram";
 import { ConceptBuild } from "./components/ConceptBuild";
+import { VerticalTimeline } from "./components/VerticalTimeline";
+import { StatGrid } from "./components/StatGrid";
+import { StatPunch } from "./components/StatPunch";
+import { CornerStat } from "./components/CornerStat";
+import { AnnotatedScreenshot } from "./components/AnnotatedScreenshot";
+import { ComparisonGrid } from "./components/ComparisonGrid";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -77,6 +83,12 @@ const STYLE_LIBRARY = {
   NotificationToast,
   NetworkDiagram,
   ConceptBuild,
+  VerticalTimeline,
+  StatGrid,
+  StatPunch,
+  CornerStat,
+  AnnotatedScreenshot,
+  ComparisonGrid,
 };
 
 export const calculateTotalFrames = (scenes) => {

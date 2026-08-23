@@ -1,4 +1,4 @@
-import { interpolate, useCurrentFrame } from "remotion";
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { resolveFont } from "../fonts";
 
 function Check() {
@@ -9,16 +9,21 @@ function Check() {
   );
 }
 
-// steps: ["Connect Drive", "Build workflow", "Add ElevenLabs", "Deploy"]
-// Auto-advances through the steps across the scene's duration - each step
-// becomes active in turn, then marked done, rather than a static snapshot.
-export const ProgressSteps = ({ steps, durationInFrames, font = "ui"}) => {
+// Upgraded from a flat interpolate-only pop (no spring, hardcoded blue/green)
+// to real spring pop-ins and a settle-breathe on the active step, with
+// accent color now prop-driven instead of hardcoded. Existing props
+// (steps, durationInFrames, font) unchanged.
+export const ProgressSteps = ({ steps, durationInFrames, accentColor = "#4ADE80", doneColor = "#2ECC71", font = "ui" }) => {
+  const { fps } = useVideoConfig();
   const frame = useCurrentFrame();
   const perStep = durationInFrames / steps.length;
   const rawIndex = frame / perStep;
   const activeIndex = Math.min(steps.length - 1, Math.floor(rawIndex));
-  const withinStepProgress = rawIndex - activeIndex; // 0-1 pop-in progress for the active step
-  const pop = interpolate(withinStepProgress, [0, 0.3], [0.7, 1], { extrapolateRight: "clamp" });
+  const stepStartFrame = activeIndex * perStep;
+
+  const s = spring({ frame: frame - stepStartFrame, fps, durationInFrames: Math.round(fps * 0.4), config: { damping: 12, stiffness: 200, mass: 0.6 } });
+  const pop = interpolate(s, [0, 1], [0.7, 1]);
+  const breathe = 1 + 0.02 * Math.sin((frame / fps) * Math.PI * 1.4);
 
   return (
     <div style={{
@@ -29,8 +34,8 @@ export const ProgressSteps = ({ steps, durationInFrames, font = "ui"}) => {
         {steps.map((step, i) => {
           const isDone = i < activeIndex;
           const isActive = i === activeIndex;
-          const color = isActive ? "#2E86FF" : isDone ? "#2ECC71" : "#2a2a30";
-          const scale = isActive ? pop : 1;
+          const color = isActive ? accentColor : isDone ? doneColor : "#2a2a30";
+          const scale = isActive ? pop * breathe : 1;
           return (
             <div key={i} style={{ display: "flex", alignItems: "flex-start" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 150 }}>
@@ -39,7 +44,7 @@ export const ProgressSteps = ({ steps, durationInFrames, font = "ui"}) => {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   color: "white", fontSize: 28, fontWeight: 700,
                   transform: `scale(${scale})`,
-                  boxShadow: isActive ? "0 0 0 8px rgba(46,134,255,0.25)" : "none",
+                  boxShadow: isActive ? `0 0 0 8px ${accentColor}40` : "none",
                 }}>
                   {isDone ? <Check /> : i + 1}
                 </div>
@@ -48,7 +53,7 @@ export const ProgressSteps = ({ steps, durationInFrames, font = "ui"}) => {
                 </div>
               </div>
               {i < steps.length - 1 ? (
-                <div style={{ width: 60, height: 4, background: i < activeIndex ? "#2ECC71" : "#2a2a30", marginTop: 33 }} />
+                <div style={{ width: 60, height: 4, background: i < activeIndex ? doneColor : "#2a2a30", marginTop: 33 }} />
               ) : null}
             </div>
           );
