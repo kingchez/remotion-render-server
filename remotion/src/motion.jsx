@@ -1,4 +1,4 @@
-import { Easing, interpolate } from "remotion";
+import { Easing, interpolate, spring } from "remotion";
 
 // Generic animation engine shared by every primitive. Instead of each
 // component inventing its own entrance logic, primitives pass their
@@ -12,6 +12,9 @@ import { Easing, interpolate } from "remotion";
 //   { type: "shake", start, end, intensity },
 //   { type: "highlight", start, end, color },
 //   { type: "moveTo", from: {x,y}, to: {x,y}, start, duration, easing },
+//   { type: "springIn", start, duration, damping?, stiffness?, mass?, fromScale? },
+//   { type: "livingHold", start, rampDuration?, maxScale?, driftY? },
+//   { type: "dissolveOut", start, duration, easing, scaleAmount?, riseAmount?, blurAmount? },
 // ]
 //
 // `easing` (optional on any animation that has a duration) picks the curve
@@ -40,6 +43,7 @@ export function computeMotion(animations = [], frame, fps = 30) {
   let translateY = 0;
   let scale = 1;
   let opacity = 1;
+  let blurPx = 0;
   let positionOverride = null;
   let highlightActive = false;
   let highlightColor = "#FFD400";
@@ -139,6 +143,63 @@ export function computeMotion(animations = [], frame, fps = 30) {
         break;
       }
 
+      // New: real spring-physics entrance (scale+opacity), instead of a
+      // linear/eased tween. Confirmed spring() ships inside the core
+      // `remotion` package already in this repo's dependencies - it was
+      // simply never used here before. Config knobs match the "cinematic,
+      // slightly overshooting" feel used across a well-regarded reference
+      // motion-graphics set: lower damping = more bounce.
+      case "springIn": {
+        const s = spring({
+          frame: localFrame, fps,
+          durationInFrames: duration,
+          config: {
+            damping: anim.damping ?? 14,
+            stiffness: anim.stiffness ?? 200,
+            mass: anim.mass ?? 0.6,
+          },
+        });
+        const fromScale = anim.fromScale ?? 0.6;
+        scale *= interpolate(s, [0, 1], [fromScale, 1]);
+        opacity *= interpolate(s, [0, 0.7], [0, 1], { extrapolateRight: "clamp" });
+        break;
+      }
+
+      // New: continuous idle drift+scale so a held object never sits as a
+      // frozen frame - the "living hold" principle: apply for the rest of
+      // the scene once `start` is reached, no `end` needed. Monotonic and
+      // tiny (default `maxScale`/`driftY` are subtle) - meant to read as
+      // "alive", not as visible motion.
+      case "livingHold": {
+        if (frame >= start) {
+          const dur = anim.rampDuration ?? 120; // frames to ramp up to full drift
+          const k = interpolate(frame - start, [0, dur], [0, 1], {
+            extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.ease),
+          });
+          const maxScale = anim.maxScale ?? 1.02;
+          const driftY = anim.driftY ?? -6;
+          scale *= 1 + (maxScale - 1) * k;
+          translateY += driftY * k;
+        }
+        break;
+      }
+
+      // New: choreographed exit - fade + slight scale-up + blur combined,
+      // reads as "dissolving forward" rather than a flat cut/fade. `blur`
+      // is returned separately since it's a filter, not a transform -
+      // consuming components should apply `filter: blur(${blurPx}px)`
+      // alongside the returned transform/opacity.
+      case "dissolveOut": {
+        const progress = interpolate(localFrame, [0, duration], [0, 1], {
+          extrapolateLeft: "clamp", extrapolateRight: "clamp", easing,
+        });
+        opacity *= 1 - progress;
+        scale *= 1 + progress * (anim.scaleAmount ?? 0.04);
+        translateY -= progress * (anim.riseAmount ?? 14);
+        blurPx += progress * (anim.blurAmount ?? 10);
+        break;
+      }
+
       default:
         break;
     }
@@ -148,6 +209,7 @@ export function computeMotion(animations = [], frame, fps = 30) {
     style: {
       transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
       opacity,
+      filter: blurPx > 0.05 ? `blur(${blurPx}px)` : undefined,
     },
     positionOverride,
     highlightActive,

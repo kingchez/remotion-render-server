@@ -33,6 +33,8 @@ import { MixedText } from "./components/MixedText";
 import { RatioDots } from "./components/RatioDots";
 import { NodeCullDiagram } from "./components/NodeCullDiagram";
 import { NotificationToast } from "./components/NotificationToast";
+import { NetworkDiagram } from "./components/NetworkDiagram";
+import { ConceptBuild } from "./components/ConceptBuild";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -73,6 +75,8 @@ const STYLE_LIBRARY = {
   RatioDots,
   NodeCullDiagram,
   NotificationToast,
+  NetworkDiagram,
+  ConceptBuild,
 };
 
 export const calculateTotalFrames = (scenes) => {
