@@ -3,6 +3,9 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const { v4: uuidv4 } = require("uuid");
+const { exec } = require("child_process");
+const util = require("util");
+const execPromise = util.promisify(exec);
 const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo } = require("./render");
@@ -99,6 +102,65 @@ function rehydrateJobsFromDisk() {
 }
 
 app.get("/health", (req, res) => res.json({ ok: true }));
+
+// Synchronous video-format conversion - separate from the /renders job
+// system above (no jobId, no polling, no webhook). Given any source video
+// URL (HLS .m3u8 playlist, .mp4, .webm, whatever Amazon/Axesso hands back),
+// returns a clean mp4 directly in this same HTTP response. Used by the
+// Amazon Affiliate pipeline right before uploading a product video to
+// R2/B2, since Axesso's videoeUrlList entries are sometimes an HLS
+// manifest rather than a playable mp4.
+//
+// Tries a fast remux first (stream copy, no re-encoding - works for mp4
+// and most H.264-based HLS/mov sources, near-instant), and only falls
+// back to a full re-encode (slower, covers webm/VP9, mkv, unusual codecs)
+// if the remux fails. Nothing is left on disk: the temp file is deleted
+// once the response has been sent, success or failure.
+app.post("/convert", async (req, res) => {
+  const { url } = req.body || {};
+  if (!url) {
+    return res.status(400).json({ error: "url is required" });
+  }
+
+  const convertId = uuidv4();
+  const dir = path.join(os.tmpdir(), "convert", convertId);
+  fs.mkdirSync(dir, { recursive: true });
+  const outputPath = path.join(dir, "output.mp4");
+
+  const cleanupConvert = () => fs.rm(dir, { recursive: true, force: true }, () => {});
+
+  try {
+    try {
+      // Attempt 1: fast remux - no re-encoding.
+      await execPromise(
+        `ffmpeg -y -i "${url}" -c copy -bsf:a aac_adtstoasc -movflags +faststart "${outputPath}"`,
+        { timeout: 30000 }
+      );
+    } catch (copyErr) {
+      // Attempt 2: full re-encode - covers anything remux can't handle.
+      await execPromise(
+        `ffmpeg -y -i "${url}" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k -movflags +faststart "${outputPath}"`,
+        { timeout: 120000 }
+      );
+    }
+
+    if (!fs.existsSync(outputPath)) {
+      throw new Error("ffmpeg completed but no output file was produced");
+    }
+
+    res.setHeader("Content-Type", "video/mp4");
+    res.sendFile(outputPath, (err) => {
+      if (err) {
+        console.error(`Failed to send converted file for ${convertId}:`, err.message);
+      }
+      cleanupConvert();
+    });
+  } catch (err) {
+    console.error(`Conversion failed for ${convertId}:`, err.message);
+    cleanupConvert();
+    res.status(500).json({ error: "conversion failed", detail: err.message });
+  }
+});
 
 app.post("/renders", async (req, res) => {
   const {
