@@ -9,6 +9,7 @@ const execPromise = util.promisify(exec);
 const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo } = require("./render");
+const { registerSplitRoutes } = require("./split");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -161,6 +162,9 @@ app.post("/convert", async (req, res) => {
     res.status(500).json({ error: "conversion failed", detail: err.message });
   }
 });
+
+// Synchronous audio/video split for the repurpose flow - see src/split.js.
+registerSplitRoutes(app);
 
 app.post("/renders", async (req, res) => {
   const {

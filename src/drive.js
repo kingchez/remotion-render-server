@@ -40,8 +40,8 @@ function extractConfirmToken(html) {
   return match ? match[1] : null;
 }
 
-async function fetchDriveFile(fileId) {
-  let res = await fetch(driveDownloadUrl(fileId));
+async function fetchDriveFile(fileId, signal) {
+  let res = await fetch(driveDownloadUrl(fileId), { signal });
   const contentType = res.headers.get("content-type") || "";
 
   if (contentType.includes("text/html")) {
@@ -55,7 +55,8 @@ async function fetchDriveFile(fileId) {
       );
     }
     res = await fetch(
-      `${DRIVE_DOWNLOAD_BASE}&id=${encodeURIComponent(fileId)}&confirm=${token}`
+      `${DRIVE_DOWNLOAD_BASE}&id=${encodeURIComponent(fileId)}&confirm=${token}`,
+      { signal }
     );
   }
 
@@ -88,4 +89,4 @@ async function getFileMetadata(fileId) {
   return { mimeType: res.headers.get("content-type") || null, name: null };
 }
 
-module.exports = { downloadFile, getFileMetadata };
+module.exports = { downloadFile, getFileMetadata, fetchDriveFile };
