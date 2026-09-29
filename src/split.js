@@ -4,9 +4,10 @@
 //   POST /split/video  { "url": "<video link>" }  -> video/mp4   (picture only, audio removed)
 //   POST /split/audio  { "url": "<video link>" }  -> audio/mpeg  (the audio track only, mp3)
 //
-// The source can be a Google Drive link or ANY direct http(s) link to a
-// video file (storage bucket, CDN...). `{ "file_id": "<Drive file id>" }` is
-// still accepted as the Drive-only form. Page links (YouTube, Vimeo...) are
+// The source is a single `url`: a Google Drive link or ANY direct http(s)
+// link to a video file (storage bucket, CDN...). If a Drive file id is
+// needed it is extracted from the URL here - callers never pass ids. Page
+// links (YouTube, Vimeo, Bilibili...) are
 // not direct files and are rejected with 422 not_a_direct_file. Non-Drive
 // links are fetched with an SSRF guard: public hosts only, every redirect
 // re-checked, size-capped (SPLIT_MAX_BYTES, default 10 GB).
@@ -47,7 +48,6 @@ const { fetchDriveFile } = require("./drive");
 const execFileP = promisify(execFile);
 
 const SPLIT_ROOT = path.join(os.tmpdir(), "split");
-const FILE_ID_RE = /^[a-zA-Z0-9_-]{10,100}$/;
 const TOTAL_TIMEOUT_MS = 40 * 60 * 1000; // hard ceiling for one whole request
 const COPY_CODECS = new Set(["h264", "hevc"]);
 const MAX_DOWNLOAD_BYTES = Number(process.env.SPLIT_MAX_BYTES) || 10 * 1024 * 1024 * 1024;
@@ -200,13 +200,7 @@ async function downloadUrlToFile(urlStr, destPath, signal, opts = {}) {
 // Works out where the video comes from. Drive links (and bare file ids) use
 // the Drive downloader; any other http(s) link is fetched directly.
 function resolveSource(body) {
-  const fileId = body && body.file_id;
   const url = body && body.url;
-
-  if (fileId !== undefined && fileId !== null) {
-    if (typeof fileId === "string" && FILE_ID_RE.test(fileId)) return { kind: "drive", id: fileId, label: fileId };
-    throw new SplitError(400, "invalid_request", "file_id must be a valid Google Drive file id.");
-  }
   if (typeof url !== "string" || !url.trim()) {
     throw new SplitError(400, "invalid_request", "url (a link to the video file) is required.");
   }
