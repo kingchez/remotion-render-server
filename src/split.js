@@ -1,8 +1,15 @@
 // Synchronous "split a video into its two tracks" endpoints, for the
 // repurpose flow (Citadel -> n8n -> here).
 //
-//   POST /split/video  { "file_id": "<Drive file id>" }  -> video/mp4   (picture only, audio removed)
-//   POST /split/audio  { "file_id": "<Drive file id>" }  -> audio/mpeg  (the audio track only, mp3)
+//   POST /split/video  { "url": "<video link>" }  -> video/mp4   (picture only, audio removed)
+//   POST /split/audio  { "url": "<video link>" }  -> audio/mpeg  (the audio track only, mp3)
+//
+// The source can be a Google Drive link or ANY direct http(s) link to a
+// video file (storage bucket, CDN...). `{ "file_id": "<Drive file id>" }` is
+// still accepted as the Drive-only form. Page links (YouTube, Vimeo...) are
+// not direct files and are rejected with 422 not_a_direct_file. Non-Drive
+// links are fetched with an SSRF guard: public hosts only, every redirect
+// re-checked, size-capped (SPLIT_MAX_BYTES, default 10 GB).
 //
 // Two endpoints, one file each, so every response is a single plain binary
 // n8n can hand straight to a Google Drive upload node.
@@ -27,9 +34,12 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const dns = require("dns");
+const net = require("net");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { Readable } = require("stream");
+const { Transform } = require("stream");
 const { pipeline } = require("stream/promises");
 const { v4: uuidv4 } = require("uuid");
 const { fetchDriveFile } = require("./drive");
@@ -40,6 +50,9 @@ const SPLIT_ROOT = path.join(os.tmpdir(), "split");
 const FILE_ID_RE = /^[a-zA-Z0-9_-]{10,100}$/;
 const TOTAL_TIMEOUT_MS = 40 * 60 * 1000; // hard ceiling for one whole request
 const COPY_CODECS = new Set(["h264", "hevc"]);
+const MAX_DOWNLOAD_BYTES = Number(process.env.SPLIT_MAX_BYTES) || 10 * 1024 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+const DRIVE_HOSTS = new Set(["drive.google.com", "docs.google.com", "drive.usercontent.google.com"]);
 
 class SplitError extends Error {
   constructor(status, code, message) {
@@ -70,6 +83,141 @@ async function fetchPublicDriveFile(fileId, signal) {
 async function defaultDownload(fileId, destPath, signal) {
   const res = await fetchPublicDriveFile(fileId, signal);
   await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(destPath), { signal });
+}
+
+// ---- generic (non-Drive) URL download, with an SSRF guard ---------------
+
+function isPrivateIPv4(ip) {
+  const [a, b] = ip.split(".").map(Number);
+  return (
+    a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0) ||
+    (a === 198 && (b === 18 || b === 19))
+  );
+}
+
+function isPrivateAddress(ip) {
+  const family = net.isIP(ip);
+  if (family === 4) return isPrivateIPv4(ip);
+  if (family === 6) {
+    const lower = ip.toLowerCase();
+    if (lower === "::" || lower === "::1") return true;
+    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped) return isPrivateIPv4(mapped[1]);
+    return lower.startsWith("fc") || lower.startsWith("fd") || /^fe[89ab]/.test(lower);
+  }
+  return true; // not an IP at all - treat as unsafe
+}
+
+function parseHttpUrl(urlStr) {
+  let u;
+  try {
+    u = new URL(urlStr);
+  } catch {
+    throw new SplitError(400, "invalid_url", "That is not a valid URL.");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new SplitError(400, "invalid_url", "Only http(s) URLs are supported.");
+  }
+  return u;
+}
+
+// Refuses anything that resolves to a private/internal address, so a video
+// link can never be used to reach other services on this VPS.
+async function assertPublicHttpUrl(urlStr, lookup = dns.promises.lookup) {
+  const u = parseHttpUrl(urlStr);
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  let addresses;
+  if (net.isIP(host)) {
+    addresses = [host];
+  } else {
+    try {
+      const results = await lookup(host, { all: true });
+      addresses = results.map((r) => r.address);
+    } catch {
+      throw new SplitError(502, "download_failed", `Could not resolve host ${host}.`);
+    }
+  }
+  if (addresses.length === 0 || addresses.some(isPrivateAddress)) {
+    throw new SplitError(400, "blocked_url", "That URL points to a private or internal address.");
+  }
+  return u;
+}
+
+async function downloadUrlToFile(urlStr, destPath, signal, opts = {}) {
+  const lookup = opts.lookup || dns.promises.lookup;
+  const maxBytes = opts.maxBytes || MAX_DOWNLOAD_BYTES;
+  let current = urlStr;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const u = opts.allowPrivate ? parseHttpUrl(current) : await assertPublicHttpUrl(current, lookup);
+    const res = await fetch(u, { signal, redirect: "manual" });
+
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location) {
+      if (res.body) await res.body.cancel().catch(() => {});
+      current = new URL(location, u).toString();
+      continue;
+    }
+    if (!res.ok || !res.body) {
+      if (res.body) await res.body.cancel().catch(() => {});
+      throw new SplitError(502, "download_failed", `Download failed: HTTP ${res.status}`);
+    }
+
+    const type = (res.headers.get("content-type") || "").toLowerCase();
+    if (type.includes("text/html")) {
+      await res.body.cancel().catch(() => {});
+      throw new SplitError(422, "not_a_direct_file", "That link returned a web page, not a video file. Use a direct link to the file itself.");
+    }
+    if (type.includes("mpegurl")) {
+      await res.body.cancel().catch(() => {});
+      throw new SplitError(422, "unsupported_stream", "Streaming playlists (.m3u8) aren't supported here - use a direct video file link.");
+    }
+    const declared = Number(res.headers.get("content-length"));
+    if (declared && declared > maxBytes) {
+      await res.body.cancel().catch(() => {});
+      throw new SplitError(413, "file_too_large", `File is larger than the ${maxBytes} byte limit.`);
+    }
+
+    let received = 0;
+    const counter = new Transform({
+      transform(chunk, _enc, cb) {
+        received += chunk.length;
+        if (received > maxBytes) return cb(new SplitError(413, "file_too_large", `File is larger than the ${maxBytes} byte limit.`));
+        cb(null, chunk);
+      },
+    });
+    await pipeline(Readable.fromWeb(res.body), counter, fs.createWriteStream(destPath), { signal });
+    return;
+  }
+  throw new SplitError(502, "too_many_redirects", `More than ${MAX_REDIRECTS} redirects.`);
+}
+
+// Works out where the video comes from. Drive links (and bare file ids) use
+// the Drive downloader; any other http(s) link is fetched directly.
+function resolveSource(body) {
+  const fileId = body && body.file_id;
+  const url = body && body.url;
+
+  if (fileId !== undefined && fileId !== null) {
+    if (typeof fileId === "string" && FILE_ID_RE.test(fileId)) return { kind: "drive", id: fileId, label: fileId };
+    throw new SplitError(400, "invalid_request", "file_id must be a valid Google Drive file id.");
+  }
+  if (typeof url !== "string" || !url.trim()) {
+    throw new SplitError(400, "invalid_request", "url (a link to the video file) is required.");
+  }
+
+  const u = parseHttpUrl(url.trim());
+  if (DRIVE_HOSTS.has(u.hostname.toLowerCase())) {
+    const m = u.href.match(/\/d\/([a-zA-Z0-9_-]{10,100})/) || u.href.match(/[?&]id=([a-zA-Z0-9_-]{10,100})/);
+    if (!m) throw new SplitError(400, "invalid_url", "Could not find a file id in that Google Drive link.");
+    return { kind: "drive", id: m[1], label: m[1] };
+  }
+  return { kind: "url", url: u.href, label: "source" };
 }
 
 async function probeStream(file, selector, signal) {
@@ -137,7 +285,7 @@ const KINDS = {
   audio: { file: "audio.mp3", type: "audio/mpeg", make: makeAudioOnly },
 };
 
-function registerSplitRoutes(app, { download = defaultDownload } = {}) {
+function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u, d, sig) => downloadUrlToFile(u, d, sig) } = {}) {
   // Anything left from a crash/redeploy is unrecoverable by design - clear it.
   fs.rmSync(SPLIT_ROOT, { recursive: true, force: true });
 
@@ -145,9 +293,11 @@ function registerSplitRoutes(app, { download = defaultDownload } = {}) {
 
   async function handle(kindKey, req, res) {
     const kind = KINDS[kindKey];
-    const fileId = req.body && req.body.file_id;
-    if (typeof fileId !== "string" || !FILE_ID_RE.test(fileId)) {
-      return res.status(400).json({ error: "file_id (a Google Drive file id) is required" });
+    let source;
+    try {
+      source = resolveSource(req.body);
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.code || "invalid_request", detail: err.message });
     }
     if (busy) {
       res.set("Retry-After", "30");
@@ -170,13 +320,15 @@ function registerSplitRoutes(app, { download = defaultDownload } = {}) {
       const out = path.join(dir, kind.file);
 
       try {
-        await download(fileId, src, ac.signal);
+        if (source.kind === "drive") await download(source.id, src, ac.signal);
+        else await downloadUrl(source.url, src, ac.signal);
       } catch (err) {
         if (ac.signal.aborted) throw err;
-        throw new SplitError(502, "drive_download_failed", err.message);
+        if (err instanceof SplitError) throw err;
+        throw new SplitError(502, source.kind === "drive" ? "drive_download_failed" : "download_failed", err.message);
       }
       if (!fs.existsSync(src) || fs.statSync(src).size === 0) {
-        throw new SplitError(502, "drive_download_failed", "Downloaded file is empty.");
+        throw new SplitError(502, "download_failed", "Downloaded file is empty.");
       }
 
       const mode = await kind.make(src, out, ac.signal);
@@ -187,12 +339,12 @@ function registerSplitRoutes(app, { download = defaultDownload } = {}) {
       res.set({
         "Content-Type": kind.type,
         "Content-Length": String(fs.statSync(out).size),
-        "Content-Disposition": `attachment; filename="${fileId}-${kind.file}"`,
+        "Content-Disposition": `attachment; filename="${source.label}-${kind.file}"`,
         "Cache-Control": "no-store",
         "X-Split-Mode": mode,
       });
       await pipeline(fs.createReadStream(out), res);
-      console.log(`Split (${kindKey}) ${splitId} for Drive file ${fileId} delivered (${mode}).`);
+      console.log(`Split (${kindKey}) ${splitId} from ${source.kind} source ${source.label} delivered (${mode}).`);
     } catch (err) {
       const status = err instanceof SplitError ? err.status : ac.signal.aborted ? 504 : 500;
       const code = err instanceof SplitError ? err.code : ac.signal.aborted ? "aborted_or_timed_out" : "split_failed";
@@ -213,4 +365,7 @@ function registerSplitRoutes(app, { download = defaultDownload } = {}) {
   app.post("/split/audio", (req, res) => handle("audio", req, res));
 }
 
-module.exports = { registerSplitRoutes };
+module.exports = {
+  registerSplitRoutes,
+  _internal: { assertPublicHttpUrl, isPrivateAddress, downloadUrlToFile, resolveSource },
+};
