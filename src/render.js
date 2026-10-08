@@ -25,7 +25,22 @@ function getBundleLocation() {
   return bundleLocationPromise;
 }
 
-async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music }) {
+// Encoding quality. Remotion's h264 default is CRF 18 (near-visually-lossless),
+// which produces very large files on long videos - a ~7 min 1080x1920 render
+// came out at ~403 MB. CRF 22 is visually clean for screen-recording/product
+// footage + text overlays at roughly half the size. Lower = bigger/better.
+// Override globally with RENDER_CRF / RENDER_X264_PRESET env vars, or per job
+// with a `crf` field in the render request (clamped to 16-28).
+const DEFAULT_CRF = Number(process.env.RENDER_CRF) || 22;
+const DEFAULT_X264_PRESET = process.env.RENDER_X264_PRESET || "medium";
+
+function resolveCrf(crf) {
+  const n = Number(crf);
+  if (!Number.isFinite(n)) return DEFAULT_CRF;
+  return Math.min(28, Math.max(16, Math.round(n)));
+}
+
+async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music, crf }) {
   const serveUrl = await getBundleLocation();
 
   const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null, music: music || null };
@@ -40,6 +55,10 @@ async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "v
     composition,
     serveUrl,
     codec: "h264",
+    crf: resolveCrf(crf),
+    x264Preset: DEFAULT_X264_PRESET,
+    pixelFormat: "yuv420p",
+    audioBitrate: "192k",
     outputLocation: outputPath,
     inputProps,
   });
