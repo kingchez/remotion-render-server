@@ -3,6 +3,9 @@
 //
 //   POST /split/video  { "url": "<video link>" }  -> video/mp4   (picture only, audio removed)
 //   POST /split/audio  { "url": "<video link>" }  -> audio/mpeg  (the audio track only, mp3)
+//   POST /split/clip   { "url", "start", "end", "fit"?, "width"?, "height"?, "audio"?, "crf"? }
+//                                                -> video/mp4   (one time window of the video, WITH its
+//                                                   sound, framed for a product page - see makeClip)
 //
 // The source is a single `url`: a Google Drive link or ANY direct http(s)
 // link to a video file (storage bucket, CDN...). If a Drive file id is
@@ -274,9 +277,139 @@ async function makeAudioOnly(src, out, signal) {
   return "mp3-vbr0";
 }
 
+
+// ---- /split/clip: one time window of a video, framed for a product page ----
+//
+// Used by the product-clips flow: a product's footage window (start/end in
+// seconds of the source file) is cut out and returned as one mp4. The
+// picture is NEVER stretched. Default framing is 4:5 (1080x1350), the middle
+// ground between vertical and horizontal sources:
+//   fit "blur"    (default) the whole picture is scaled to fit inside the
+//                 frame, sharp and uncropped; any leftover bars are filled
+//                 with a blurred, zoomed copy of the same picture.
+//   fit "contain" same, but the leftover bars are plain black.
+//   fit "cover"   the picture fills the frame and the overflow is cropped.
+// The sound is kept (audio:false drops it). Encoded as H.264 at CRF 18
+// (visually near-lossless) + AAC, faststart, so it plays in any browser.
+const MAX_CLIP_SECONDS = Number(process.env.CLIP_MAX_SECONDS) || 300;
+const CLIP_FITS = new Set(["blur", "contain", "cover"]);
+
+function toNumber(value) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.trim() !== "") return Number(value);
+  return NaN;
+}
+
+function parseClipOptions(body) {
+  const b = body || {};
+  const start = toNumber(b.start);
+  const end = toNumber(b.end);
+  if (!Number.isFinite(start) || start < 0) {
+    throw new SplitError(400, "invalid_request", "start (seconds, 0 or more) is required.");
+  }
+  if (!Number.isFinite(end) || end <= start) {
+    throw new SplitError(400, "invalid_request", "end (seconds) is required and must be greater than start.");
+  }
+  if (end - start > MAX_CLIP_SECONDS) {
+    throw new SplitError(400, "clip_too_long", `A clip can be at most ${MAX_CLIP_SECONDS} seconds long.`);
+  }
+  const fit = b.fit === undefined || b.fit === null ? "blur" : String(b.fit);
+  if (!CLIP_FITS.has(fit)) {
+    throw new SplitError(400, "invalid_request", "fit must be one of: blur, contain, cover.");
+  }
+  const dim = (v, def, name) => {
+    if (v === undefined || v === null) return def;
+    const n = toNumber(v);
+    if (!Number.isInteger(n) || n < 240 || n > 2160 || n % 2 !== 0) {
+      throw new SplitError(400, "invalid_request", `${name} must be an even whole number between 240 and 2160.`);
+    }
+    return n;
+  };
+  const width = dim(b.width, 1080, "width");
+  const height = dim(b.height, 1350, "height");
+  const crfRaw = b.crf === undefined || b.crf === null ? 18 : toNumber(b.crf);
+  if (!Number.isInteger(crfRaw) || crfRaw < 12 || crfRaw > 28) {
+    throw new SplitError(400, "invalid_request", "crf must be a whole number between 12 and 28.");
+  }
+  return { start, end, fit, width, height, audio: b.audio !== false, crf: crfRaw };
+}
+
+function buildClipFilter(fit, W, H) {
+  if (fit === "cover") {
+    return `[0:v:0]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H},setsar=1,format=yuv420p[v]`;
+  }
+  if (fit === "contain") {
+    return `[0:v:0]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos:force_divisible_by=2,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p[v]`;
+  }
+  return (
+    `[0:v:0]split=2[bgsrc][fgsrc];` +
+    `[bgsrc]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:3[bg];` +
+    `[fgsrc]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos:force_divisible_by=2[fg];` +
+    `[bg][fg]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2,setsar=1,format=yuv420p[v]`
+  );
+}
+
+async function probeDuration(file, signal) {
+  try {
+    const { stdout } = await execFileP(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "format=duration", "-of", "json", file],
+      { signal, maxBuffer: 1024 * 1024 }
+    );
+    const d = Number(JSON.parse(stdout || "{}").format?.duration);
+    return Number.isFinite(d) && d > 0 ? d : null;
+  } catch (err) {
+    if (signal && signal.aborted) throw err;
+    return null; // unknown duration - ffmpeg itself will stop at the end of the file
+  }
+}
+
+async function makeClip(src, out, signal, opts) {
+  const video = await probeStream(src, "v:0", signal);
+  if (!video) throw new SplitError(422, "no_video_track", "The file has no video track.");
+
+  // Keep the sound when asked and when there is any (a silent source just gives a silent clip).
+  let audio = null;
+  if (opts.audio) {
+    try {
+      audio = await probeStream(src, "a:0", signal);
+    } catch (err) {
+      if (signal && signal.aborted) throw err;
+      audio = null;
+    }
+  }
+
+  const duration = await probeDuration(src, signal);
+  let length = opts.end - opts.start;
+  if (duration !== null) {
+    if (opts.start >= duration - 0.2) {
+      throw new SplitError(422, "start_beyond_duration", `start (${opts.start}s) is at or past the end of the video (${duration.toFixed(2)}s).`);
+    }
+    // An end slightly past the real end is clamped, never an error.
+    length = Math.min(opts.end, duration) - opts.start;
+  }
+  if (length < 0.3) throw new SplitError(422, "clip_too_short", "That time window is shorter than 0.3 seconds.");
+
+  const args = [
+    "-ss", String(opts.start), "-i", src, "-t", length.toFixed(3),
+    "-filter_complex", buildClipFilter(opts.fit, opts.width, opts.height),
+    "-map", "[v]",
+  ];
+  if (audio) args.push("-map", "0:a:0");
+  args.push("-sn", "-dn", "-c:v", "libx264", "-preset", "medium", "-crf", String(opts.crf), "-pix_fmt", "yuv420p");
+  if (audio) {
+    args.push("-c:a", "aac", "-b:a", "160k");
+    if (audio.channels > 2) args.push("-ac", "2");
+  }
+  args.push("-movflags", "+faststart", out);
+  await runFfmpeg(args, signal);
+  return `clip-${opts.fit}-${opts.width}x${opts.height}-${length.toFixed(2)}s${audio ? "" : "-silent"}`;
+}
+
 const KINDS = {
   video: { file: "video-only.mp4", type: "video/mp4", make: makeVideoOnly },
   audio: { file: "audio.mp3", type: "audio/mpeg", make: makeAudioOnly },
+  clip: { file: "clip.mp4", type: "video/mp4", make: makeClip, parse: parseClipOptions },
 };
 
 function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u, d, sig) => downloadUrlToFile(u, d, sig) } = {}) {
@@ -288,8 +421,10 @@ function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u
   async function handle(kindKey, req, res) {
     const kind = KINDS[kindKey];
     let source;
+    let opts = {};
     try {
       source = resolveSource(req.body);
+      if (kind.parse) opts = kind.parse(req.body);
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.code || "invalid_request", detail: err.message });
     }
@@ -325,7 +460,7 @@ function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u
         throw new SplitError(502, "download_failed", "Downloaded file is empty.");
       }
 
-      const mode = await kind.make(src, out, ac.signal);
+      const mode = await kind.make(src, out, ac.signal, opts);
       if (!fs.existsSync(out) || fs.statSync(out).size === 0) {
         throw new SplitError(500, "no_output", "ffmpeg finished but produced no output file.");
       }
@@ -357,9 +492,10 @@ function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u
 
   app.post("/split/video", (req, res) => handle("video", req, res));
   app.post("/split/audio", (req, res) => handle("audio", req, res));
+  app.post("/split/clip", (req, res) => handle("clip", req, res));
 }
 
 module.exports = {
   registerSplitRoutes,
-  _internal: { assertPublicHttpUrl, isPrivateAddress, downloadUrlToFile, resolveSource },
+  _internal: { assertPublicHttpUrl, isPrivateAddress, downloadUrlToFile, resolveSource, parseClipOptions, buildClipFilter, makeClip },
 };
