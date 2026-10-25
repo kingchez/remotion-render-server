@@ -49,6 +49,7 @@ import { BarOverlay } from "./components/BarOverlay";
 import { TickerFeed } from "./components/TickerFeed";
 import { SidePanel } from "./components/SidePanel";
 import { AvatarBurst } from "./components/AvatarBurst";
+import { CanvasAnimation } from "./components/CanvasAnimation";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -105,6 +106,7 @@ const STYLE_LIBRARY = {
   TickerFeed,
   SidePanel,
   AvatarBurst,
+  CanvasAnimation,
 };
 
 export const calculateTotalFrames = (scenes) => {

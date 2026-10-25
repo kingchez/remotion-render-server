@@ -1,5 +1,6 @@
 import { Composition } from "remotion";
 import { SceneVideo, calculateTotalFrames } from "./SceneVideo";
+import { CanvasSound } from "./components/CanvasSound";
 
 const FPS = 30;
 
@@ -36,6 +37,16 @@ const defaultProps = {
 
 export const RemotionRoot = () => {
   return (
+    <>
+    <Composition
+      id="CanvasSound"
+      component={CanvasSound}
+      fps={FPS}
+      width={1280}
+      height={720}
+      durationInFrames={1}
+      defaultProps={{ html: "", uploadUrl: "" }}
+    />
     <Composition
       id="SceneVideo"
       component={SceneVideo}
@@ -53,5 +64,6 @@ export const RemotionRoot = () => {
         };
       }}
     />
+    </>
   );
 };

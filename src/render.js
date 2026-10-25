@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const { bundle } = require("@remotion/bundler");
-const { renderMedia, selectComposition } = require("@remotion/renderer");
+const { renderMedia, renderStill, selectComposition } = require("@remotion/renderer");
 
 let bundleLocationPromise = null;
 
@@ -70,4 +70,23 @@ async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "v
   return outputPath;
 }
 
-module.exports = { renderSceneVideo };
+// Renders the sound effects of an agent-written HTML animation (the style
+// atlas pages). Runs the CanvasSound helper composition for one frame; that
+// composition renders the page's window.scoreSound with the SOUND kit and
+// POSTs a WAV to `uploadUrl` (handled in src/index.js). Nothing is returned:
+// the caller checks whether the WAV file appeared.
+async function renderCanvasSound({ html, uploadUrl, stillPath }) {
+  const serveUrl = await getBundleLocation();
+  const inputProps = { html, uploadUrl };
+  const composition = await selectComposition({ serveUrl, id: "CanvasSound", inputProps });
+  await renderStill({
+    composition,
+    serveUrl,
+    output: stillPath,
+    inputProps,
+    frame: 0,
+    timeoutInMilliseconds: 240000,
+  });
+}
+
+module.exports = { renderSceneVideo, renderCanvasSound };

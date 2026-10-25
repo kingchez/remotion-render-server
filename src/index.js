@@ -8,7 +8,7 @@ const util = require("util");
 const execPromise = util.promisify(exec);
 const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
-const { renderSceneVideo } = require("./render");
+const { renderSceneVideo, renderCanvasSound } = require("./render");
 const { registerSplitRoutes } = require("./split");
 
 const app = express();
@@ -165,6 +165,27 @@ app.post("/convert", async (req, res) => {
 
 // Synchronous audio/video split for the repurpose flow - see src/split.js.
 registerSplitRoutes(app);
+
+// Receives the sound effects of an agent-written HTML animation, rendered by
+// the CanvasSound helper composition inside Remotion's own browser (see
+// remotion/src/components/CanvasSound.jsx). Body is the WAV as base64 text.
+// Loopback only, and only for a job that is currently being processed.
+app.post(
+  "/internal/canvas-sound/:jobId/:sceneIndex",
+  express.text({ type: "*/*", limit: "80mb" }),
+  (req, res) => {
+    const ip = req.socket.remoteAddress || "";
+    const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+    const { jobId, sceneIndex } = req.params;
+    if (!isLoopback || !jobs.has(jobId) || !/^\d+$/.test(sceneIndex) || typeof req.body !== "string") {
+      return res.status(403).end();
+    }
+    const dir = tempDirFor(jobId);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `scene-${sceneIndex}-sound.wav`), Buffer.from(req.body, "base64"));
+    res.status(204).end();
+  }
+);
 
 app.post("/renders", async (req, res) => {
   const {
@@ -360,6 +381,7 @@ const MIME_TO_EXT = {
   "image/webp": ".webp",
   "image/gif": ".gif",
   "image/svg+xml": ".svg",
+  "text/html": ".html",
   "video/mp4": ".mp4",
   "video/quicktime": ".mov",
   "video/webm": ".webm",
@@ -446,6 +468,43 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     return resolved;
   }
 
+  // CanvasAnimation scenes play an agent-written HTML page (style atlas).
+  // The page arrives as `html` (inline) or `htmlDriveFileId`/`htmlUrl`; the
+  // component only ever sees inline `html`. Unless `sound: false`, the page's
+  // own sound effects are rendered to a WAV first and handed over as
+  // `soundUrl`. A page without sound is fine: the scene just stays silent.
+  async function prepareCanvasScene(props, sceneIndex) {
+    if (!props.html && props.htmlUrl) {
+      const isLocal = props.htmlUrl.startsWith(`http://127.0.0.1:${PORT}/tmp-assets/`);
+      if (!isLocal && !/^https:\/\//.test(props.htmlUrl)) {
+        throw new Error(`CanvasAnimation scene ${sceneIndex}: htmlUrl must be https:// or a Drive file`);
+      }
+      const r = await fetch(props.htmlUrl);
+      if (!r.ok) throw new Error(`CanvasAnimation scene ${sceneIndex}: could not fetch the page (HTTP ${r.status})`);
+      props.html = await r.text();
+    }
+    delete props.htmlUrl;
+    if (typeof props.html !== "string" || !props.html.includes("seek")) {
+      throw new Error(`CanvasAnimation scene ${sceneIndex}: needs the animation page in html (or htmlDriveFileId) with window.seek`);
+    }
+    if (props.sound === false || props.soundUrl) return;
+    const soundPath = path.join(dir, `scene-${sceneIndex}-sound.wav`);
+    try {
+      await renderCanvasSound({
+        html: props.html,
+        uploadUrl: `http://127.0.0.1:${PORT}/internal/canvas-sound/${jobId}/${sceneIndex}`,
+        stillPath: path.join(dir, `scene-${sceneIndex}-sound.png`),
+      });
+    } catch (err) {
+      console.warn(`CanvasAnimation scene ${sceneIndex}: sound render failed, scene will be silent:`, err.message);
+    }
+    if (fs.existsSync(soundPath)) {
+      props.soundUrl = localAssetUrl(soundPath);
+    } else {
+      console.warn(`CanvasAnimation scene ${sceneIndex}: page produced no sound file, scene will be silent.`);
+    }
+  }
+
   const resolvedScenes = [];
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i];
@@ -488,6 +547,9 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
       resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, objects: resolvedObjects });
     } else {
       const props = await resolveAssets(scene.props || {}, i, "");
+      if (scene.component === "CanvasAnimation") {
+        await prepareCanvasScene(props, i);
+      }
       resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, props });
     }
   }
