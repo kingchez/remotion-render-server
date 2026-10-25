@@ -10,6 +10,7 @@ const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo, renderCanvasSound } = require("./render");
 const { registerSplitRoutes } = require("./split");
+const { inlineGoogleFonts } = require("./fonts");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -487,6 +488,8 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     if (typeof props.html !== "string" || !props.html.includes("seek")) {
       throw new Error(`CanvasAnimation scene ${sceneIndex}: needs the animation page in html (or htmlDriveFileId) with window.seek`);
     }
+    // Embed the page's Google Fonts so rendering never depends on the network.
+    props.html = await inlineGoogleFonts(props.html);
     if (props.sound === false || props.soundUrl) return;
     const soundPath = path.join(dir, `scene-${sceneIndex}-sound.wav`);
     try {
