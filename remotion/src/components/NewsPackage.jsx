@@ -57,12 +57,12 @@ function layout(width, height) {
     s,
     horizontal,
     tab: { x: 48, y: base - 52, h: 44 },
-    strap: { x: 48, y: base, w: 984, h: 150, end: 0 },
+    strap: { x: 48, y: base, w: 984, h: 176, end: 0 },
     source: { right: 1032, y: base - 40, maxW: 520 },
     bug: { cx: 940, cy: 150, w: 170, h: 59 },
     tag: { x: 48, y: 110, h: 46 },
-    head: 46,
-    sub: 26,
+    head: 58,
+    sub: 31,
   };
 }
 
@@ -114,12 +114,17 @@ export const NewsPackage = ({ brand: brandIn, bug, straps }) => {
     const tabTextColor = brand.ink;
 
     const words = (s, yOffset, key) => (
-      <div key={key} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, transform: `translateY(${yOffset}px)` }}>
-        <div style={{ fontFamily: head, fontWeight: 800, fontSize: px(L.head), lineHeight: 1.04, color: brand.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "uppercase", paddingTop: px(10) }}>
+      <div key={key} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, display: "flex", flexDirection: "column", justifyContent: "center", transform: `translateY(${yOffset}px)` }}>
+        <div style={{
+          fontFamily: head, fontWeight: 800, fontSize: px(L.head), lineHeight: 1.02, color: brand.ink, textTransform: "uppercase", overflow: "hidden",
+          ...(L.horizontal
+            ? { whiteSpace: "nowrap", textOverflow: "ellipsis" }
+            : { whiteSpace: "normal", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }),
+        }}>
           {s.headline}
         </div>
         {s.sub ? (
-          <div style={{ fontFamily: head, fontWeight: 600, fontSize: px(L.sub), lineHeight: 1.1, color: brand.olive, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: px(2) }}>
+          <div style={{ fontFamily: head, fontWeight: 600, fontSize: px(L.sub), lineHeight: 1.1, color: brand.olive, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: px(4) }}>
             {s.sub}
           </div>
         ) : null}
