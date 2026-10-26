@@ -61,6 +61,8 @@ export const RemotionRoot = () => {
           durationInFrames: calculateTotalFrames(props.scenes),
           width: dims.width,
           height: dims.height,
+          // Scene durations are counted in frames at this rate (default 30).
+          fps: [24, 25, 30, 50, 60].includes(props.fps) ? props.fps : FPS,
         };
       }}
     />

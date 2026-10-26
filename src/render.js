@@ -40,10 +40,10 @@ function resolveCrf(crf) {
   return Math.min(28, Math.max(16, Math.round(n)));
 }
 
-async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music, newsPackage, crf }) {
+async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music, newsPackage, fps, crf }) {
   const serveUrl = await getBundleLocation();
 
-  const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null, music: music || null, newsPackage: newsPackage || null };
+  const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null, music: music || null, newsPackage: newsPackage || null, fps: fps || 30 };
 
   const composition = await selectComposition({
     serveUrl,
@@ -58,6 +58,11 @@ async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "v
     crf: resolveCrf(crf),
     x264Preset: DEFAULT_X264_PRESET,
     pixelFormat: "yuv420p",
+    // Remotion captures each frame as a JPEG before x264 sees it, and its
+    // default quality (80) smears text edges and flat gradients; 95 keeps
+    // type and thin lines crisp. Override with RENDER_JPEG_QUALITY.
+    jpegQuality: Number(process.env.RENDER_JPEG_QUALITY) || 95,
+    ...(process.env.RENDER_CONCURRENCY ? { concurrency: Number(process.env.RENDER_CONCURRENCY) } : {}),
     audioBitrate: "192k",
     outputLocation: outputPath,
     inputProps,

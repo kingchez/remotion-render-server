@@ -11,6 +11,7 @@ const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo, renderCanvasSound } = require("./render");
 const { registerSplitRoutes } = require("./split");
 const { inlineGoogleFonts } = require("./fonts");
+const { loadCanvasAssets, injectAssets } = require("./canvasAssets");
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -178,7 +179,7 @@ app.post(
     const ip = req.socket.remoteAddress || "";
     const isLoopback = ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
     const { jobId, sceneIndex } = req.params;
-    if (!isLoopback || !jobs.has(jobId) || !/^\d+$/.test(sceneIndex) || typeof req.body !== "string") {
+    if (!isLoopback || !jobs.has(jobId) || !/^\d+(?:-\d+)?$/.test(sceneIndex) || typeof req.body !== "string") {
       return res.status(403).end();
     }
     const dir = tempDirFor(jobId);
@@ -197,8 +198,12 @@ app.post("/renders", async (req, res) => {
     look,
     music,
     newsPackage,
+    fps,
     callbackUrl,
   } = req.body || {};
+  if (fps !== undefined && ![24, 25, 30, 50, 60].includes(fps)) {
+    return res.status(400).json({ error: "fps must be one of 24, 25, 30, 50, 60 (default 30). Scene durations are in frames at this rate." });
+  }
 
   if (!["vertical", "horizontal"].includes(orientation)) {
     return res
@@ -230,7 +235,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, crf, callbackUrl }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, fps, crf, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -394,7 +399,7 @@ const MIME_TO_EXT = {
   "audio/ogg": ".ogg",
 };
 
-async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, crf, callbackUrl }) {
+async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, fps, crf, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -475,37 +480,47 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
   // component only ever sees inline `html`. Unless `sound: false`, the page's
   // own sound effects are rendered to a WAV first and handed over as
   // `soundUrl`. A page without sound is fine: the scene just stays silent.
-  async function prepareCanvasScene(props, sceneIndex) {
+  // sceneKey is "3" for a classic scene or "3-1" for a scene-graph layer.
+  async function prepareCanvasScene(props, sceneKey, sceneIndex) {
     if (!props.html && props.htmlUrl) {
       const isLocal = props.htmlUrl.startsWith(`http://127.0.0.1:${PORT}/tmp-assets/`);
       if (!isLocal && !/^https:\/\//.test(props.htmlUrl)) {
-        throw new Error(`CanvasAnimation scene ${sceneIndex}: htmlUrl must be https:// or a Drive file`);
+        throw new Error(`CanvasAnimation scene ${sceneKey}: htmlUrl must be https:// or a Drive file`);
       }
       const r = await fetch(props.htmlUrl);
-      if (!r.ok) throw new Error(`CanvasAnimation scene ${sceneIndex}: could not fetch the page (HTTP ${r.status})`);
+      if (!r.ok) throw new Error(`CanvasAnimation scene ${sceneKey}: could not fetch the page (HTTP ${r.status})`);
       props.html = await r.text();
     }
     delete props.htmlUrl;
-    if (typeof props.html !== "string" || !props.html.includes("seek")) {
-      throw new Error(`CanvasAnimation scene ${sceneIndex}: needs the animation page in html (or htmlDriveFileId) with window.seek`);
+    if (typeof props.html !== "string" || !/window\s*\.\s*seek\s*=|window\s*\[\s*['"]seek['"]\s*\]\s*=/.test(props.html)) {
+      throw new Error(`CanvasAnimation scene ${sceneKey}: needs the animation page in html (or htmlDriveFileId) with window.seek`);
     }
     // Embed the page's Google Fonts so rendering never depends on the network.
     props.html = await inlineGoogleFonts(props.html);
+    // User files (logo, photos, data) become window.ASSETS[name] data URIs.
+    const assetMap = await loadCanvasAssets({
+      assets: props.assets,
+      sceneKey,
+      port: PORT,
+      resolveDrive: async (fileId, k) => (await resolveAssets({ assetDriveFileId: fileId }, sceneIndex, `canvas${sceneKey}-a${k}-`)).assetUrl,
+    });
+    delete props.assets;
+    props.html = injectAssets(props.html, assetMap);
     if (props.sound === false || props.soundUrl) return;
-    const soundPath = path.join(dir, `scene-${sceneIndex}-sound.wav`);
+    const soundPath = path.join(dir, `scene-${sceneKey}-sound.wav`);
     try {
       await renderCanvasSound({
         html: props.html,
-        uploadUrl: `http://127.0.0.1:${PORT}/internal/canvas-sound/${jobId}/${sceneIndex}`,
-        stillPath: path.join(dir, `scene-${sceneIndex}-sound.png`),
+        uploadUrl: `http://127.0.0.1:${PORT}/internal/canvas-sound/${jobId}/${sceneKey}`,
+        stillPath: path.join(dir, `scene-${sceneKey}-sound.png`),
       });
     } catch (err) {
-      console.warn(`CanvasAnimation scene ${sceneIndex}: sound render failed, scene will be silent:`, err.message);
+      console.warn(`CanvasAnimation scene ${sceneKey}: sound render failed, scene will be silent:`, err.message);
     }
     if (fs.existsSync(soundPath)) {
       props.soundUrl = localAssetUrl(soundPath);
     } else {
-      console.warn(`CanvasAnimation scene ${sceneIndex}: page produced no sound file, scene will be silent.`);
+      console.warn(`CanvasAnimation scene ${sceneKey}: page produced no sound file, scene will be silent.`);
     }
   }
 
@@ -546,13 +561,20 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     if (Array.isArray(scene.objects)) {
       const resolvedObjects = [];
       for (let o = 0; o < scene.objects.length; o++) {
-        resolvedObjects.push(await resolveAssets(scene.objects[o], i, `obj${o}-`));
+        const resolvedObj = await resolveAssets(scene.objects[o], i, `obj${o}-`);
+        // A CanvasAnimation layer inside a scene graph (e.g. a transparent
+        // overlay on top of a Video object) is prepared like a classic scene.
+        if (resolvedObj.type === "preset" && resolvedObj.name === "CanvasAnimation") {
+          resolvedObj.props = resolvedObj.props || {};
+          await prepareCanvasScene(resolvedObj.props, `${i}-${o}`, i);
+        }
+        resolvedObjects.push(resolvedObj);
       }
       resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, objects: resolvedObjects });
     } else {
       const props = await resolveAssets(scene.props || {}, i, "");
       if (scene.component === "CanvasAnimation") {
-        await prepareCanvasScene(props, i);
+        await prepareCanvasScene(props, String(i), i);
       }
       resolvedScenes.push({ ...scene, audioUrl: sceneAudioUrl, sfx: resolvedSfx, props });
     }
@@ -566,7 +588,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
   }
 
   const outputPath = path.join(dir, "output.mp4");
-  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music, newsPackage, crf });
+  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music, newsPackage, fps, crf });
 
   // No Drive upload here anymore - delivery is downstream, via n8n. The
   // rendered file stays on local disk (not cleaned up) until it's actually

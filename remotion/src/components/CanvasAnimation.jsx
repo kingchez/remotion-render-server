@@ -15,6 +15,12 @@ import { useCanvasPage } from "../canvasPage";
 //   loop         true = repeat the animation if the scene is longer
 //   fit          "contain" (default; blurred bars when the frame is not 16:9)
 //                or "cover" (fills the frame, crops the edges)
+//   transparent  true = no black backing and no blurred bars, so whatever the
+//                page leaves transparent (clearRect, no background fill) shows
+//                the layer underneath: an overlay of graphics, captions or
+//                package parts on top of a Video object in a scene graph
+//   opacity      0..1 for the whole layer, default 1
+//   (window.ASSETS[name] = data URI of each file passed in `assets`; set up by the server)
 
 function pickCanvas(doc) {
   let best = null;
@@ -29,7 +35,7 @@ function pickCanvas(doc) {
   return best;
 }
 
-function drawFit(ctx, src, W, H, fit) {
+function drawFit(ctx, src, W, H, fit, transparent) {
   const sw = src.width;
   const sh = src.height;
   ctx.clearRect(0, 0, W, H);
@@ -38,7 +44,7 @@ function drawFit(ctx, src, W, H, fit) {
   const cover = Math.max(W / sw, H / sh);
   const contain = Math.min(W / sw, H / sh);
   const s = fit === "cover" ? cover : contain;
-  if (fit !== "cover" && Math.abs(cover - contain) > 0.001) {
+  if (!transparent && fit !== "cover" && Math.abs(cover - contain) > 0.001) {
     // Bars (vertical video): a blurred, dimmed copy of the same frame fills them.
     const bw = sw * cover * 1.08;
     const bh = sh * cover * 1.08;
@@ -59,6 +65,8 @@ export const CanvasAnimation = ({
   startSec = 0,
   loop = false,
   fit = "contain",
+  transparent = false,
+  opacity = 1,
   durationInFrames,
 }) => {
   const frame = useCurrentFrame();
@@ -82,11 +90,11 @@ export const CanvasAnimation = ({
     win.seek(Math.max(0, t));
     if (!srcRef.current || !srcRef.current.isConnected) srcRef.current = pickCanvas(win.document);
     if (!srcRef.current) throw new Error("CanvasAnimation: no <canvas> found in the page");
-    drawFit(outRef.current.getContext("2d"), srcRef.current, width, height, fit);
-  }, [win, frame, fps, width, height, startSec, loop, fit]);
+    drawFit(outRef.current.getContext("2d"), srcRef.current, width, height, fit, transparent);
+  }, [win, frame, fps, width, height, startSec, loop, fit, transparent]);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#000" }}>
+    <AbsoluteFill style={{ backgroundColor: transparent ? "transparent" : "#000", opacity }}>
       {element}
       <canvas ref={outRef} width={width} height={height} style={{ width: "100%", height: "100%" }} />
       {soundUrl ? (

@@ -148,6 +148,9 @@ const TransitionWrapper = ({
     const progress = frame / ownTransitionDuration;
     style = getTransitionStyle(ownTransitionIn, progress, "in");
     if (ownTransitionIn === "band-wipe") band = <BandWipe progress={progress} colors={bandColors} />;
+    if (ownTransitionIn === "flash") {
+      band = <AbsoluteFill style={{ backgroundColor: "#fff", opacity: Math.max(0, 1 - Math.abs(2 * progress - 1)) }} />;
+    }
   } else if (backExtend > 0 && frame >= durationInFrames - backExtend) {
     const framesIntoExit = frame - (durationInFrames - backExtend);
     const progress = 1 - framesIntoExit / nextTransitionDuration;
