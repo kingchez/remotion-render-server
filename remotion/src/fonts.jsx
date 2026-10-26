@@ -3,6 +3,8 @@ import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadDancingScript } from "@remotion/google-fonts/DancingScript";
 import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
+import { loadFont as loadBarlowCondensed } from "@remotion/google-fonts/BarlowCondensed";
+import { loadFont as loadPlexMono } from "@remotion/google-fonts/IBMPlexMono";
 
 // A small curated set covering the font roles that came up repeatedly in
 // the "viral edit" style research: a clean body/UI font, a bold display
@@ -24,6 +26,9 @@ const poppins = loadPoppins("normal", { weights: ["400", "600", "700"] });
 const anton = loadAnton();
 const script = loadDancingScript();
 const lora = loadLora("normal", { weights: ["400", "600", "700"] });
+// Broadcast-package type: condensed sans for names, numbers and straps, mono for datelines/sources.
+const condensed = loadBarlowCondensed("normal", { weights: ["600", "800"] });
+const plexMono = loadPlexMono("normal", { weights: ["500"] });
 
 export const FONT_PRESETS = {
   body: inter.fontFamily,
@@ -31,6 +36,8 @@ export const FONT_PRESETS = {
   display: anton.fontFamily,
   script: script.fontFamily,
   serif: lora.fontFamily,
+  condensed: condensed.fontFamily,
+  mono: plexMono.fontFamily,
 };
 
 // Resolves a `font` prop that's either one of the curated preset names

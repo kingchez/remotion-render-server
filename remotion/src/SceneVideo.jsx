@@ -1,5 +1,5 @@
 import { AbsoluteFill, Audio, Sequence } from "remotion";
-import { useCurrentFrame } from "remotion";
+import { useCurrentFrame, useVideoConfig } from "remotion";
 import { KenBurnsImage } from "./components/KenBurnsImage";
 import { Screencast } from "./components/Screencast";
 import { MotionGraphic } from "./components/MotionGraphic";
@@ -50,6 +50,8 @@ import { TickerFeed } from "./components/TickerFeed";
 import { SidePanel } from "./components/SidePanel";
 import { AvatarBurst } from "./components/AvatarBurst";
 import { CanvasAnimation } from "./components/CanvasAnimation";
+import { NewsPackage } from "./components/NewsPackage";
+import { normalizeAssetUrl } from "./assetUrl";
 import { SceneGraph } from "./SceneGraph";
 import { getCameraStyle } from "./camera";
 import { getTransitionStyle } from "./transitions";
@@ -136,24 +138,54 @@ const CameraWrapper = ({ movement, durationInFrames, children }) => {
 // extended on each side to create the overlap window.
 const TransitionWrapper = ({
   children, durationInFrames, frontExtend, backExtend, ownTransitionIn, ownTransitionDuration,
-  nextTransitionIn, nextTransitionDuration,
+  nextTransitionIn, nextTransitionDuration, bandColors,
 }) => {
   const frame = useCurrentFrame(); // local frame within this scene's (possibly extended) Sequence
 
   let style = {};
+  let band = null;
   if (frontExtend > 0 && frame < frontExtend) {
     const progress = frame / ownTransitionDuration;
-    style = getTransitionStyle(ownTransitionIn, progress);
+    style = getTransitionStyle(ownTransitionIn, progress, "in");
+    if (ownTransitionIn === "band-wipe") band = <BandWipe progress={progress} colors={bandColors} />;
   } else if (backExtend > 0 && frame >= durationInFrames - backExtend) {
     const framesIntoExit = frame - (durationInFrames - backExtend);
     const progress = 1 - framesIntoExit / nextTransitionDuration;
-    style = getTransitionStyle(nextTransitionIn, progress);
+    style = getTransitionStyle(nextTransitionIn, progress, "out");
   }
 
-  return <AbsoluteFill style={style}>{children}</AbsoluteFill>;
+  return (
+    <AbsoluteFill style={style}>
+      {children}
+      {band}
+    </AbsoluteFill>
+  );
 };
 
-export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
+// The visible band of a "band-wipe": accent (84) + ink line (5) + gold edge
+// (14) at 1920 wide, leading the incoming scene's reveal. It sits just inside
+// the clipped region, so its gold edge is exactly where the new picture ends.
+const BandWipe = ({ progress, colors }) => {
+  const { width } = useVideoConfig();
+  const s = width / 1920;
+  const accent = colors?.accent ?? "#F2CF1D";
+  const ink = colors?.ink ?? "#121417";
+  const gold = colors?.gold ?? "#D4B064";
+  const edge = progress * width;
+  const parts = [[84 * s, accent], [5 * s, ink], [14 * s, gold]];
+  let x = edge - parts.reduce((a, [w]) => a + w, 0);
+  return (
+    <>
+      {parts.map(([w, c], i) => {
+        const left = x;
+        x += w;
+        return <div key={i} style={{ position: "absolute", top: 0, bottom: 0, left, width: w, backgroundColor: c }} />;
+      })}
+    </>
+  );
+};
+
+export const SceneVideo = ({ scenes, audioUrl, look, music, newsPackage }) => {
   // Precompute each scene's actual (possibly overlap-extended) timing.
   // Normal case (no transitions specified anywhere): behaves exactly like
   // the old simple sequential loop - fully backward compatible.
@@ -263,7 +295,7 @@ export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
               ? sfx.map((fx, fxIdx) =>
                   fx?.url ? (
                     <Sequence key={`sfx-${fxIdx}`} from={fx.atFrame ?? 0}>
-                      <Audio src={fx.url} volume={fx.volume ?? 1} />
+                      <Audio src={normalizeAssetUrl(fx.url)} volume={fx.volume ?? 1} />
                     </Sequence>
                   ) : null
                 )
@@ -276,6 +308,7 @@ export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
               ownTransitionDuration={ownTransitionDuration}
               nextTransitionIn={nextTransitionIn}
               nextTransitionDuration={nextTransitionDuration}
+              bandColors={newsPackage?.brand}
             >
               <CameraWrapper movement={scene.camera} durationInFrames={scene.durationInFrames}>
                 {content}
@@ -306,6 +339,8 @@ export const SceneVideo = ({ scenes, audioUrl, look, music }) => {
           paperTint={look.halftone.paperTint}
         />
       ) : null}
+      {/* Package layer sits above scenes and above the film look: graphics and the package are never grained. */}
+      {newsPackage ? <NewsPackage brand={newsPackage.brand} bug={newsPackage.bug} straps={newsPackage.straps} /> : null}
     </AbsoluteFill>
   );
 };

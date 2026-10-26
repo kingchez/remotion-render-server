@@ -196,6 +196,7 @@ app.post("/renders", async (req, res) => {
     crf,
     look,
     music,
+    newsPackage,
     callbackUrl,
   } = req.body || {};
 
@@ -229,7 +230,7 @@ app.post("/renders", async (req, res) => {
   res.status(202).json({ jobId, status: "pending" });
 
   // Process asynchronously so the caller (n8n) gets an immediate jobId back
-  processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, crf, callbackUrl }).catch(
+  processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, crf, callbackUrl }).catch(
     (err) => {
       jobs.set(jobId, {
         status: "error",
@@ -393,7 +394,7 @@ const MIME_TO_EXT = {
   "audio/ogg": ".ogg",
 };
 
-async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, crf, callbackUrl }) {
+async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, music, newsPackage, crf, callbackUrl }) {
   jobs.set(jobId, { status: "processing", createdAt: jobs.get(jobId).createdAt });
 
   const dir = tempDirFor(jobId);
@@ -565,7 +566,7 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
   }
 
   const outputPath = path.join(dir, "output.mp4");
-  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music, crf });
+  await renderSceneVideo({ scenes: resolvedScenes, audioUrl, outputPath, orientation, look, music, newsPackage, crf });
 
   // No Drive upload here anymore - delivery is downstream, via n8n. The
   // rendered file stays on local disk (not cleaned up) until it's actually

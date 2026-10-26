@@ -40,10 +40,10 @@ function resolveCrf(crf) {
   return Math.min(28, Math.max(16, Math.round(n)));
 }
 
-async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music, crf }) {
+async function renderSceneVideo({ scenes, audioUrl, outputPath, orientation = "vertical", look, music, newsPackage, crf }) {
   const serveUrl = await getBundleLocation();
 
-  const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null, music: music || null };
+  const inputProps = { scenes, audioUrl: audioUrl || null, orientation, look: look || null, music: music || null, newsPackage: newsPackage || null };
 
   const composition = await selectComposition({
     serveUrl,
