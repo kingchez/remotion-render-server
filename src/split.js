@@ -497,5 +497,5 @@ function registerSplitRoutes(app, { download = defaultDownload, downloadUrl = (u
 
 module.exports = {
   registerSplitRoutes,
-  _internal: { assertPublicHttpUrl, isPrivateAddress, downloadUrlToFile, resolveSource, parseClipOptions, buildClipFilter, makeClip },
+  _internal: { SplitError, runFfmpeg, assertPublicHttpUrl, isPrivateAddress, downloadUrlToFile, resolveSource, parseClipOptions, buildClipFilter, makeClip },
 };

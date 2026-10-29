@@ -10,6 +10,7 @@ const { downloadFile, getFileMetadata } = require("./drive");
 const { resolveIconSvg } = require("./icons");
 const { renderSceneVideo, renderCanvasSound } = require("./render");
 const { registerSplitRoutes } = require("./split");
+const { registerShortsRoutes } = require("./shorts");
 const { inlineGoogleFonts } = require("./fonts");
 const { loadCanvasAssets, injectAssets } = require("./canvasAssets");
 
@@ -167,6 +168,9 @@ app.post("/convert", async (req, res) => {
 
 // Synchronous audio/video split for the repurpose flow - see src/split.js.
 registerSplitRoutes(app);
+
+// Merge clips and images into one vertical video for the news shorts flow - see src/shorts.js.
+registerShortsRoutes(app);
 
 // Receives the sound effects of an agent-written HTML animation, rendered by
 // the CanvasSound helper composition inside Remotion's own browser (see
