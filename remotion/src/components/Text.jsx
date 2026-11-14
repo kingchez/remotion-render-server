@@ -20,6 +20,8 @@ export const Text = ({
   stroke,
   // New: CSS mix-blend-mode, e.g. "difference" | "multiply" | "lighter".
   blendMode,
+  // Optional character-by-character typewriter reveal: { start, duration, minChars? }
+  typewriter,
   animations = [{ type: "fadeIn", start: 0, duration: 15 }],
 }) => {
   const frame = useCurrentFrame();
@@ -28,6 +30,18 @@ export const Text = ({
   const { style, positionOverride, highlightActive, highlightColor } = computeMotion(animations, frame, fps);
   const posX = positionOverride?.x ?? x;
   const posY = positionOverride?.y ?? y;
+
+  const displayedText = typewriter
+    ? (() => {
+        const start = typewriter.start ?? 0;
+        const duration = Math.max(1, typewriter.duration ?? 24);
+        if (frame < start) return "";
+        const progress = Math.min(1, Math.max(0, (frame - start) / duration));
+        const minChars = typewriter.minChars ?? 1;
+        const count = Math.min(text.length, Math.max(minChars, Math.round(progress * text.length)));
+        return text.slice(0, count);
+      })()
+    : text;
 
   const gradientStyles = colorGradient
     ? {
@@ -58,7 +72,7 @@ export const Text = ({
         textShadow: highlightActive ? `0 0 20px ${highlightColor}` : "0 2px 8px rgba(0,0,0,0.6)",
       }}
     >
-      {text}
+      {displayedText}
     </div>
   );
 };
