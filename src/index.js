@@ -542,6 +542,19 @@ async function processJob(jobId, { scenes, audioDriveFileId, orientation, look, 
     if (scene.audioDriveFileId) {
       const resolved = await resolveAssets({ audioDriveFileId: scene.audioDriveFileId }, i, "scene-audio-");
       sceneAudioUrl = resolved.audioUrl;
+      const rate = Number(scene.audioPlaybackRate ?? scene.props?.audioPlaybackRate ?? 1);
+      if (Number.isFinite(rate) && rate > 0 && Math.abs(rate - 1) > 0.005) {
+        const srcName = decodeURIComponent(path.basename(new URL(sceneAudioUrl).pathname));
+        const srcPath = path.join(dir, srcName);
+        const fastPath = path.join(dir, `scene-${i}-scene-audio-fast.mp3`);
+        const filters = [];
+        let rem = rate;
+        while (rem > 2.0) { filters.push("atempo=2.0"); rem /= 2.0; }
+        while (rem < 0.5) { filters.push("atempo=0.5"); rem /= 0.5; }
+        filters.push(`atempo=${rem.toFixed(4)}`);
+        await execPromise(`ffmpeg -y -i "${srcPath}" -filter:a "${filters.join(",")}" -vn "${fastPath}"`);
+        sceneAudioUrl = localAssetUrl(fastPath);
+      }
     }
 
     // One-shot sound effects (whoosh/riser/click) - each entry can be
