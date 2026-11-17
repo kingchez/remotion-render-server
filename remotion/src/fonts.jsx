@@ -1,1 +1,32 @@
-aW1wb3J0IHsgbG9hZEZvbnQgYXMgbG9hZEludGVyIH0gZnJvbSAiQHJlbW90aW9uL2dvb2dsZS1mb250cy9JbnRlciI7CmltcG9ydCB7IGxvYWRGb250IGFzIGxvYWRQb3BwaW5zIH0gZnJvbSAiQHJlbW90aW9uL2dvb2dsZS1mb250cy9Qb3BwaW5zIjsKaW1wb3J0IHsgbG9hZEZvbnQgYXMgbG9hZEFudG9uIH0gZnJvbSAiQHJlbW90aW9uL2dvb2dsZS1mb250cy9BbnRvbiI7CmltcG9ydCB7IGxvYWRGb250IGFzIGxvYWREYW5jaW5nU2NyaXB0IH0gZnJvbSAiQHJlbW90aW9uL2dvb2dsZS1mb250cy9EYW5jaW5nU2NyaXB0IjsKaW1wb3J0IHsgbG9hZEZvbnQgYXMgbG9hZExvcmEgfSBmcm9tICJAcmVtb3Rpb24vZ29vZ2xlLWZvbnRzL0xvcmEiOwppbXBvcnQgeyBsb2FkRm9udCBhcyBsb2FkQmFybG93Q29uZGVuc2VkIH0gZnJvbSAiQHJlbW90aW9uL2dvb2dsZS1mb250cy9CYXJsb3dDb25kZW5zZWQiOwppbXBvcnQgeyBsb2FkRm9udCBhcyBsb2FkUGxleE1vbm8gfSBmcm9tICJAcmVtb3Rpb24vZ29vZ2xlLWZvbnRzL0lCTVBsZXhNb25vIjsKaW1wb3J0IHsgbG9hZEZvbnQgYXMgbG9hZEJvZG9uaU1vZGEgfSBmcm9tICJAcmVtb3Rpb24vZ29vZ2xlLWZvbnRzL0JvZG9uaU1vZGEiOwoKY29uc3QgaW50ZXIgPSBsb2FkSW50ZXIoKTsKY29uc3QgcG9wcGlucyA9IGxvYWRQb3BwaW5zKCJub3JtYWwiLCB7IHdlaWdodHM6IFsiNDAwIiwgIjYwMCIsICI3MDAiXSB9KTsKY29uc3QgYW50b24gPSBsb2FkQW50b24oKTsKY29uc3Qgc2NyaXB0ID0gbG9hZERhbmNpbmdTY3JpcHQoKTsKY29uc3QgbG9yYSA9IGxvYWRMb3JhKCJub3JtYWwiLCB7IHdlaWdodHM6IFsiNDAwIiwgIjYwMCIsICI3MDAiXSB9KTsKY29uc3QgY29uZGVuc2VkID0gbG9hZEJhcmxvd0NvbmRlbnNlZCgibm9ybWFsIiwgeyB3ZWlnaHRzOiBbIjYwMCIsICI4MDAiXSB9KTsKY29uc3QgcGxleE1vbm8gPSBsb2FkUGxleE1vbm8oIm5vcm1hbCIsIHsgd2VpZ2h0czogWyI1MDAiXSB9KTsKY29uc3QgZWRpdG9yaWFsID0gbG9hZEJvZG9uaU1vZGEoIm5vcm1hbCIsIHsgd2VpZ2h0czogWyI0MDAiLCAiNjAwIiwgIjcwMCJdIH0pOwoKZXhwb3J0IGNvbnN0IEZPTlRfUFJFU0VUUyA9IHsKICBib2R5OiBpbnRlci5mb250RmFtaWx5LAogIHVpOiBwb3BwaW5zLmZvbnRGYW1pbHksCiAgZGlzcGxheTogYW50b24uZm9udEZhbWlseSwKICBzY3JpcHQ6IHNjcmlwdC5mb250RmFtaWx5LAogIHNlcmlmOiBsb3JhLmZvbnRGYW1pbHksCiAgY29uZGVuc2VkOiBjb25kZW5zZWQuZm9udEZhbWlseSwKICBtb25vOiBwbGV4TW9uby5mb250RmFtaWx5LAogIGVkaXRvcmlhbDogZWRpdG9yaWFsLmZvbnRGYW1pbHksCn07CgpleHBvcnQgZnVuY3Rpb24gcmVzb2x2ZUZvbnQoZm9udCkgewogIHJldHVybiBGT05UX1BSRVNFVFNbZm9udF0gPz8gZm9udDsKfQo=
+import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
+import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
+import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
+import { loadFont as loadDancingScript } from "@remotion/google-fonts/DancingScript";
+import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
+import { loadFont as loadBarlowCondensed } from "@remotion/google-fonts/BarlowCondensed";
+import { loadFont as loadPlexMono } from "@remotion/google-fonts/IBMPlexMono";
+import { loadFont as loadBodoniModa } from "@remotion/google-fonts/BodoniModa";
+
+const inter = loadInter();
+const poppins = loadPoppins("normal", { weights: ["400", "600", "700"] });
+const anton = loadAnton();
+const script = loadDancingScript();
+const lora = loadLora("normal", { weights: ["400", "600", "700"] });
+const condensed = loadBarlowCondensed("normal", { weights: ["600", "800"] });
+const plexMono = loadPlexMono("normal", { weights: ["500"] });
+const editorial = loadBodoniModa("normal", { weights: ["400", "600", "700"] });
+
+export const FONT_PRESETS = {
+  body: inter.fontFamily,
+  ui: poppins.fontFamily,
+  display: anton.fontFamily,
+  script: script.fontFamily,
+  serif: lora.fontFamily,
+  condensed: condensed.fontFamily,
+  mono: plexMono.fontFamily,
+  editorial: editorial.fontFamily,
+};
+
+export function resolveFont(font) {
+  return FONT_PRESETS[font] ?? font;
+}
